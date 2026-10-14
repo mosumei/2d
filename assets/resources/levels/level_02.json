@@ -1,0 +1,30 @@
+
+{
+  "id": 2,
+  "name": "Jewel Flower",
+  "rows": 10,
+  "cols": 10,
+  "trayCapacity": 8,
+  "target": [
+    "...YYYY...",
+    "..YBBBBY..",
+    ".YBBRRBBY.",
+    "YBBRRRRBBY",
+    "YBRRYYRRBY",
+    "YBRRYYRRBY",
+    "YBBRRRRBBY",
+    ".YBBRRBBY.",
+    "..YBBBBY..",
+    "...YYYY..."
+  ],
+  "initialSwaps": [
+    [0, 3, 1, 3],
+    [1, 4, 2, 4],
+    [2, 4, 3, 4],
+    [3, 2, 4, 2],
+    [4, 3, 5, 4],
+    [5, 6, 6, 4],
+    [6, 5, 7, 3],
+    [7, 6, 8, 5]
+  ]
+}

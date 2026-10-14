@@ -1,0 +1,23 @@
+
+{
+  "id": 1,
+  "name": "First Jewel",
+  "rows": 8,
+  "cols": 8,
+  "trayCapacity": 8,
+  "target": [
+    "...YY...",
+    "..YBBY..",
+    ".YBRRBY.",
+    "YBRYYRBY",
+    "YBRYYRBY",
+    ".YBRRBY.",
+    "..YBBY..",
+    "...YY..."
+  ],
+  "initialSwaps": [
+    [1, 3, 2, 3],
+    [3, 2, 3, 3],
+    [4, 2, 4, 3]
+  ]
+}
