@@ -10,6 +10,7 @@ import { GemCell, GemColor } from './GemCell';
 import { GemMoveAnimator, GemMove } from './GemMoveAnimator';
 import { CompletePanelUI } from '../ui/CompletePanelUI';
 import { LevelManager, LevelData } from '../core/LevelManager';
+import { AudioManager } from '../core/AudioManager'
 
 const { ccclass, property } = _decorator;
 
@@ -67,6 +68,8 @@ export class GameManager extends Component {
     debugStartLevel = 0;
 
     private currentLevelData: LevelData | null = null;
+    @property(AudioManager)
+audioManager: AudioManager | null = null;
 
 
 onLoad() {
