@@ -89,9 +89,12 @@ onLoad() {
 }
 
 
-  start() {
-    this.openLevel(1);
-}
+    start() {
+        const level =
+            this.levelManager?.getHighestUnlockedLevel() ?? 1;
+
+        this.openLevel(level);
+    }
 
     // ===== 统一处理选中状态 =====
 
@@ -480,6 +483,13 @@ onLoad() {
             return;
         }
 
+        if (level > this.levelManager.getHighestUnlockedLevel()) {
+            console.warn(
+                `[GameManager] LEVEL ${level} 尚未解锁`
+            );
+            return;
+        }
+
         const returnToComplete = this.finished;
 
         this.clearSelection();
@@ -491,13 +501,15 @@ onLoad() {
                 if (this.isValid) {
                     this.finished = true;
                     if (returnToComplete) {
-                        this.completePanel?.show();
+                  this.completePanel?.show(3);
                     }
                 }
                 return;
             }
 
             this.currentLevelData = data;
+
+            this.levelManager?.setLastPlayedLevel(data.id);
 
             this.trayManager!.resetTray(data.trayCapacity);
             this.boardManager!.loadLevel(
@@ -554,9 +566,13 @@ onLoad() {
         if (allCorrect && trayEmpty) {
             this.finished = true;
 
-            console.log('LEVEL COMPLETE!');
+            this.levelManager?.unlockNextLevel();
 
-            this.completePanel?.show();
+            console.log(
+                `[GameManager] LEVEL ${this.levelManager?.getCurrentLevel()} COMPLETE!`
+            );
+
+       this.completePanel?.show(3);
         }
     }
     onDestroy() {

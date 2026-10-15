@@ -10,6 +10,7 @@ import {
 } from 'cc';
 
 const { ccclass, property } = _decorator;
+import { StarRating } from './StarRating';
 
 @ccclass('CompletePanelUI')
 export class CompletePanelUI extends Component {
@@ -25,7 +26,8 @@ export class CompletePanelUI extends Component {
 
     @property(Button)
     homeButton: Button | null = null;
-
+@property(StarRating)
+starRating: StarRating | null = null;
     public onNext: (() => void) | null = null;
     public onRestart: (() => void) | null = null;
     public onHome: (() => void) | null = null;
@@ -50,9 +52,9 @@ export class CompletePanelUI extends Component {
         );
     }
 
-    public show() {
+public show(earnedStars: number = 3) {
         this.node.active = true;
-
+this.starRating?.showStars(earnedStars);
         if (!this.popupCard) return;
 
         Tween.stopAllByTarget(this.popupCard);
