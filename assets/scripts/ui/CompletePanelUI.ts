@@ -97,25 +97,25 @@ this.starRating?.showStars(earnedStars);
     }
 
     onDestroy() {
-        this.nextButton?.node.off(
+        this.nextButton?.node?.off(
             Button.EventType.CLICK,
             this.handleNext,
             this
         );
 
-        this.restartButton?.node.off(
+        this.restartButton?.node?.off(
             Button.EventType.CLICK,
             this.handleRestart,
             this
         );
 
-        this.homeButton?.node.off(
+        this.homeButton?.node?.off(
             Button.EventType.CLICK,
             this.handleHome,
             this
         );
 
-        if (this.popupCard) {
+        if (this.popupCard?.isValid) {
             Tween.stopAllByTarget(this.popupCard);
         }
     }

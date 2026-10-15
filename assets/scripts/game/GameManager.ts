@@ -43,6 +43,20 @@ export class GameManager extends Component {
 
     // 新增：动画执行期间禁止点击
     private isAnimating = false;
+
+    private moveCount = 0;
+
+    public getMoveCount(): number {
+        return this.moveCount;
+    }
+
+    private countMove() {
+        this.moveCount++;
+
+        console.log(
+            `[GameManager] Moves: ${this.moveCount}`
+        );
+    }
     @property(CompletePanelUI)
     completePanel: CompletePanelUI | null = null;
     @property(LevelManager)
@@ -197,6 +211,7 @@ onLoad() {
             source.setCurrentColor(colorB);
             target.setCurrentColor(colorA);
             this.clearSelection();
+            this.countMove();
             this.checkCompleted();
             return;
         }
@@ -245,7 +260,7 @@ onLoad() {
             target.setCurrentColor(colorA);
 
             this.isAnimating = false;
-
+            this.countMove();
             this.checkCompleted();
 
             console.log('宝石移动动画完成');
@@ -294,6 +309,7 @@ onLoad() {
             if (tray.setGemAt(index, targetColor)) {
                 target.setCurrentColor(trayColor);
                 this.clearSelection();
+                this.countMove();
                 this.checkCompleted();
             }
             return;
@@ -335,6 +351,7 @@ onLoad() {
             target.setCurrentColor(trayColor);
 
             this.isAnimating = false;
+            this.countMove();
             this.checkCompleted();
 
             console.log('托盘与棋盘交换动画完成');
@@ -389,6 +406,7 @@ onLoad() {
                 if (tray.setGemAt(index, color)) {
                     cell.setCurrentColor(null);
                     this.clearSelection();
+                    this.countMove();
                 }
                 return;
             }
@@ -415,6 +433,7 @@ onLoad() {
                     cell.setCurrentColor(null);
 
                     this.isAnimating = false;
+                    this.countMove();
                     this.checkCompleted();
                 }
             );
@@ -448,6 +467,7 @@ onLoad() {
                 if (tray.setGemAt(index, color)) {
                     tray.setGemAt(sourceIndex, null);
                     this.clearSelection();
+                    this.countMove();
                 }
                 return;
             }
@@ -472,6 +492,7 @@ onLoad() {
                     tray.setGemAt(sourceIndex, null);
 
                     this.isAnimating = false;
+                    this.countMove();
                 }
             );
         } else {
@@ -537,6 +558,7 @@ onLoad() {
             this.selected = null;
             this.finished = false;
             this.isAnimating = false;
+            this.moveCount = 0;
 
             if (this.levelLabel) {
                 this.levelLabel.string = `LEVEL ${data.id}`;
@@ -571,28 +593,39 @@ onLoad() {
         if (
             !this.boardManager ||
             !this.trayManager ||
+            !this.levelManager ||
             this.finished
         ) return;
 
-        const allCorrect =
-            this.boardManager.isCompleted();
-
-        const trayEmpty =
+        const completed =
+            this.boardManager.isCompleted() &&
             this.trayManager.getGemCount() === 0;
 
-        if (allCorrect && trayEmpty) {
-            this.finished = true;
+        if (!completed) return;
 
-            if (this.debugStartLevel === 0) {
-                this.levelManager?.unlockNextLevel();
-            }
+        this.finished = true;
 
-            console.log(
-                `[GameManager] LEVEL ${this.levelManager?.getCurrentLevel()} COMPLETE!`
+        const level = this.levelManager.getCurrentLevel();
+        const stars = this.levelManager.calculateStars(
+            this.moveCount,
+            this.currentLevelData?.starThresholds
+        );
+
+        if (this.debugStartLevel === 0) {
+            this.levelManager.recordLevelResult(
+                level,
+                this.moveCount,
+                stars
             );
-
-       this.completePanel?.show(3);
+            this.levelManager.unlockNextLevel();
         }
+
+        console.log(
+            `[GameManager] LEVEL ${level} COMPLETE! ` +
+            `Moves: ${this.moveCount}, Stars: ${stars}`
+        );
+
+        this.completePanel?.show(stars);
     }
     onDestroy() {
         this.clearSelection();

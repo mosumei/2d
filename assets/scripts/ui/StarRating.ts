@@ -33,7 +33,7 @@ export class StarRating extends Component {
 
     // 月牙形高度，越大弧度越明显
     @property
-    arcHeight = 16;
+    arcHeight = 48;
 
     // 每颗星出现的间隔
     @property
@@ -88,15 +88,10 @@ export class StarRating extends Component {
             const offset = i - center;
             const x = offset * step;
 
-            // 中间高，两侧低
-            const y = 38 -
-                offset * offset * this.arcHeight;
-
-            // 中间略大，两侧稍小
-            const baseScale = Math.max(
-                0.8,
-                1.12 - Math.abs(offset) * 0.1
-            );
+            // 中间高，两侧按比例降低
+            const t = center === 0 ? 0 : offset / center;
+            const y = this.arcHeight * (1 - t * t);
+            const baseScale = 1;
 
             star.setPosition(x, y, 0);
             star.setScale(0, 0, 1);

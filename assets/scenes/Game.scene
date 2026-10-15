@@ -813,7 +813,7 @@
     "levelManager": {
       "__id__": 45
     },
-    "debugStartLevel": 0,
+    "debugStartLevel": 1,
     "_id": "3fs+r0xPNDrLtGVJNpGyfQ"
   },
   {
@@ -1060,7 +1060,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": 85,
+      "y": 15,
       "z": 0
     },
     "_lrot": {
@@ -1125,7 +1125,7 @@
     "maxStars": 5,
     "starSize": 72,
     "spacing": 12,
-    "arcHeight": 16,
+    "arcHeight": 48,
     "appearInterval": 0.22,
     "_id": "bbGeWXJsVDRro/4zl7qB/z"
   },
@@ -1154,7 +1154,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -290,
+      "y": -215,
       "z": 0
     },
     "_lrot": {
@@ -1328,7 +1328,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 155,
-      "y": -215,
+      "y": -120,
       "z": 0
     },
     "_lrot": {
@@ -1504,7 +1504,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": -155,
-      "y": -215,
+      "y": -120,
       "z": 0
     },
     "_lrot": {

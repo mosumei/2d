@@ -9,6 +9,11 @@ import {
 
 const { ccclass } = _decorator;
 
+export interface StarThresholds {
+    five: number;
+    four: number;
+}
+
 export interface LevelData {
     id: number;
     name: string;
@@ -17,6 +22,7 @@ export interface LevelData {
     trayCapacity: number;
     target: string[];
     initialSwaps: number[][];
+    starThresholds?: StarThresholds;
 }
 
 @ccclass('LevelManager')
@@ -25,6 +31,10 @@ export class LevelManager extends Component {
 
     private highestUnlockedLevel = 1;
     private lastPlayedLevel = 1;
+    private levelRecords: Record<
+        string,
+        { bestStars: number; bestMoves: number }
+    > = {};
 
     private currentLevel = 1;
 
@@ -122,6 +132,41 @@ export class LevelManager extends Component {
                     ? last
                     : 1;
 
+            if (
+                data.levelRecords &&
+                typeof data.levelRecords === 'object' &&
+                !Array.isArray(data.levelRecords)
+            ) {
+                this.levelRecords = {};
+
+                for (const [key, value] of Object.entries(
+                    data.levelRecords as Record<string, unknown>
+                )) {
+                    const record = value as {
+                        bestStars?: unknown;
+                        bestMoves?: unknown;
+                    } | null;
+
+                    const stars = record?.bestStars;
+                    const moves = record?.bestMoves;
+
+                    if (
+                        /^[1-9]\d*$/.test(key) &&
+                        typeof stars === 'number' &&
+                        Number.isInteger(stars) &&
+                        stars >= 3 && stars <= 5 &&
+                        typeof moves === 'number' &&
+                        Number.isSafeInteger(moves) &&
+                        moves >= 1
+                    ) {
+                        this.levelRecords[key] = {
+                            bestStars: stars,
+                            bestMoves: moves
+                        };
+                    }
+                }
+            }
+
             console.log(
                 '[Save] 读取存档成功',
                 this.highestUnlockedLevel,
@@ -136,7 +181,8 @@ export class LevelManager extends Component {
     private saveProgress() {
         const data = {
             highestUnlockedLevel: this.highestUnlockedLevel,
-            lastPlayedLevel: this.lastPlayedLevel
+            lastPlayedLevel: this.lastPlayedLevel,
+            levelRecords: this.levelRecords
         };
 
         try {
@@ -186,11 +232,56 @@ export class LevelManager extends Component {
         this.saveProgress();
     }
 
+    public calculateStars(
+        moves: number,
+        thresholds?: StarThresholds
+    ): number {
+        const five = thresholds?.five ?? 3;
+        const four = thresholds?.four ?? 6;
+
+        if (moves <= five) return 5;
+        if (moves <= four) return 4;
+
+        return 3;
+    }
+
+    public recordLevelResult(
+        level: number,
+        moves: number,
+        stars: number
+    ) {
+        const key = String(level);
+        const previous = this.levelRecords[key];
+
+        this.levelRecords[key] = {
+            bestStars: Math.max(
+                previous?.bestStars ?? 0,
+                stars
+            ),
+            bestMoves: Math.min(
+                previous?.bestMoves ?? Infinity,
+                moves
+            )
+        };
+
+        this.saveProgress();
+
+        console.log(
+            `[Save] LEVEL ${level} 最佳成绩`,
+            this.levelRecords[key]
+        );
+    }
+
+    public getLevelRecord(level: number) {
+        return this.levelRecords[String(level)] ?? null;
+    }
+
     // 开发测试用：重置存档
     public resetProgress() {
         this.currentLevel = 1;
         this.highestUnlockedLevel = 1;
         this.lastPlayedLevel = 1;
+        this.levelRecords = {};
 
         sys.localStorage.removeItem(this.SAVE_KEY);
 
@@ -244,6 +335,22 @@ export class LevelManager extends Component {
                 data.target[r2][c2] === '.'
             ) {
                 console.error('交换坐标无效', swap);
+                return false;
+            }
+        }
+
+        const thresholds = data.starThresholds;
+
+        if (thresholds !== undefined) {
+            if (
+                !Number.isInteger(thresholds.five) ||
+                !Number.isInteger(thresholds.four) ||
+                thresholds.five < 1 ||
+                thresholds.four < thresholds.five
+            ) {
+                console.error(
+                    '[LevelManager] 星级阈值配置错误'
+                );
                 return false;
             }
         }
