@@ -48,6 +48,10 @@ export class GameManager extends Component {
     @property(LevelManager)
     levelManager: LevelManager | null = null;
 
+    // 0 = 读取存档；大于 0 = 强制从该关开始，且不写入存档
+    @property
+    debugStartLevel = 0;
+
     private currentLevelData: LevelData | null = null;
 
 
@@ -90,8 +94,14 @@ onLoad() {
 
 
     start() {
-        const level =
+        const savedLevel =
             this.levelManager?.getHighestUnlockedLevel() ?? 1;
+
+        const level = this.debugStartLevel > 0
+            ? this.debugStartLevel
+            : savedLevel;
+
+        console.log(`[DEBUG] 启动关卡：LEVEL ${level}`);
 
         this.openLevel(level);
     }
@@ -483,7 +493,12 @@ onLoad() {
             return;
         }
 
-        if (level > this.levelManager.getHighestUnlockedLevel()) {
+        const debugMode = this.debugStartLevel > 0;
+
+        if (
+            !debugMode &&
+            level > this.levelManager.getHighestUnlockedLevel()
+        ) {
             console.warn(
                 `[GameManager] LEVEL ${level} 尚未解锁`
             );
@@ -509,7 +524,9 @@ onLoad() {
 
             this.currentLevelData = data;
 
-            this.levelManager?.setLastPlayedLevel(data.id);
+            if (this.debugStartLevel === 0) {
+                this.levelManager?.setLastPlayedLevel(data.id);
+            }
 
             this.trayManager!.resetTray(data.trayCapacity);
             this.boardManager!.loadLevel(
@@ -566,7 +583,9 @@ onLoad() {
         if (allCorrect && trayEmpty) {
             this.finished = true;
 
-            this.levelManager?.unlockNextLevel();
+            if (this.debugStartLevel === 0) {
+                this.levelManager?.unlockNextLevel();
+            }
 
             console.log(
                 `[GameManager] LEVEL ${this.levelManager?.getCurrentLevel()} COMPLETE!`
