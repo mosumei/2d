@@ -58,6 +58,17 @@ export class GameManager extends Component {
             `[GameManager] Moves: ${this.moveCount}`
         );
     }
+
+    private playPlacementSound(
+        sourceMatched: boolean,
+        targetMatched: boolean
+    ) {
+        if (sourceMatched || targetMatched) {
+            this.audioManager?.playMatch();
+        } else {
+            this.audioManager?.playMove();
+        }
+    }
     @property(CompletePanelUI)
     completePanel: CompletePanelUI | null = null;
     @property(LevelManager)
@@ -141,6 +152,7 @@ onLoad() {
 
         this.selected = { type: 'board', cell };
         cell.setSelected(true);
+        this.audioManager?.playSelect();
     }
 
     private selectTray(index: number) {
@@ -150,6 +162,7 @@ onLoad() {
 
         this.selected = { type: 'tray', index };
         this.trayManager.setSelectedIndex(index);
+        this.audioManager?.playSelect();
     }
 
     // ===== 点击棋盘格子 =====
@@ -213,6 +226,10 @@ onLoad() {
         if (!this.moveAnimator) {
             source.setCurrentColor(colorB);
             target.setCurrentColor(colorA);
+            this.playPlacementSound(
+                source.isCorrect(),
+                target.isCorrect()
+            );
             this.clearSelection();
             this.countMove();
             this.checkCompleted();
@@ -261,6 +278,10 @@ onLoad() {
             // 动画结束才交换真正的数据
             source.setCurrentColor(colorB);
             target.setCurrentColor(colorA);
+            this.playPlacementSound(
+                source.isCorrect(),
+                target.isCorrect()
+            );
 
             this.isAnimating = false;
             this.countMove();
@@ -311,6 +332,10 @@ onLoad() {
         ) {
             if (tray.setGemAt(index, targetColor)) {
                 target.setCurrentColor(trayColor);
+                this.playPlacementSound(
+                    false,
+                    target.isCorrect()
+                );
                 this.clearSelection();
                 this.countMove();
                 this.checkCompleted();
@@ -352,6 +377,10 @@ onLoad() {
             // 动画完成后才提交状态
             tray.setGemAt(index, targetColor);
             target.setCurrentColor(trayColor);
+            this.playPlacementSound(
+                false,
+                target.isCorrect()
+            );
 
             this.isAnimating = false;
             this.countMove();
@@ -409,6 +438,7 @@ onLoad() {
                 if (tray.setGemAt(index, color)) {
                     cell.setCurrentColor(null);
                     this.clearSelection();
+                    this.audioManager?.playMove();
                     this.countMove();
                 }
                 return;
@@ -436,6 +466,7 @@ onLoad() {
                     cell.setCurrentColor(null);
 
                     this.isAnimating = false;
+                    this.audioManager?.playMove();
                     this.countMove();
                     this.checkCompleted();
                 }
@@ -470,6 +501,7 @@ onLoad() {
                 if (tray.setGemAt(index, color)) {
                     tray.setGemAt(sourceIndex, null);
                     this.clearSelection();
+                    this.audioManager?.playMove();
                     this.countMove();
                 }
                 return;
@@ -495,6 +527,7 @@ onLoad() {
                     tray.setGemAt(sourceIndex, null);
 
                     this.isAnimating = false;
+                    this.audioManager?.playMove();
                     this.countMove();
                 }
             );
@@ -562,6 +595,7 @@ onLoad() {
             this.finished = false;
             this.isAnimating = false;
             this.moveCount = 0;
+            this.audioManager?.playBGM();
 
             if (this.levelLabel) {
                 this.levelLabel.string = `LEVEL ${data.id}`;
@@ -607,6 +641,8 @@ onLoad() {
         if (!completed) return;
 
         this.finished = true;
+        this.audioManager?.stopBGM();
+        this.audioManager?.playComplete();
 
         const level = this.levelManager.getCurrentLevel();
         const stars = this.levelManager.calculateStars(
