@@ -6,15 +6,19 @@ import {
 
 const { ccclass, property } = _decorator;
 
-export type GemColor = 'yellow' | 'blue' | 'red';
+export type GemColor =
+    'yellow' | 'blue' | 'red' | 'black' | 'white' | 'pink';
 
 export type GemFrames =
     Partial<Record<GemColor, SpriteFrame>>;
 
 export const GEM_COLORS: Record<GemColor, Color> = {
-    yellow: new Color(255, 212, 58, 255),
-    blue: new Color(67, 151, 245, 255),
-    red: new Color(245, 93, 100, 255)
+    yellow: new Color(255, 226, 150, 255),
+    blue: new Color(150, 190, 235, 255),
+    red: new Color(245, 180, 180, 255),
+    black: new Color(170, 176, 186, 255),
+    white: new Color(214, 222, 232, 255),
+    pink: new Color(245, 196, 214, 255)
 };
 
 @ccclass('GemCell')
@@ -36,6 +40,7 @@ export class GemCell extends Component {
 
     private frames: GemFrames = {};
     private outline: Graphics | null = null;
+    private cellSize = 60;
 
     onLoad() {
         this.node.on(
@@ -57,6 +62,21 @@ export class GemCell extends Component {
         this.targetColor = target;
         this.currentColor = current;
         this.frames = frames;
+
+        this.refreshView();
+    }
+
+    public setDisplaySize(size: number) {
+        this.cellSize = size;
+        this.node.getComponent(UITransform)
+            ?.setContentSize(size, size);
+
+        this.node.getChildByName('CellBackground')
+            ?.getComponent(UITransform)
+            ?.setContentSize(size, size);
+
+        this.outline?.node.getComponent(UITransform)
+            ?.setContentSize(size, size);
 
         this.refreshView();
     }
@@ -107,9 +127,10 @@ export class GemCell extends Component {
 
                 this.gemSprite.color = Color.WHITE;
 
+                const gemSize = this.cellSize * 0.92;
                 this.gemSprite
                     .getComponent(UITransform)
-                    ?.setContentSize(46, 46);
+                    ?.setContentSize(gemSize, gemSize);
             }
         }
 
@@ -127,9 +148,10 @@ export class GemCell extends Component {
             this.targetMarker.color =
                 new Color(255, 255, 255, 85);
 
+            const markerSize = this.cellSize * 0.72;
             this.targetMarker
                 .getComponent(UITransform)
-                ?.setContentSize(40, 40);
+                ?.setContentSize(markerSize, markerSize);
         }
     }
 
@@ -141,7 +163,7 @@ export class GemCell extends Component {
             outlineNode.parent = this.node;
 
             outlineNode.addComponent(UITransform)
-                .setContentSize(60, 60);
+                .setContentSize(this.cellSize, this.cellSize);
 
             this.outline = outlineNode.addComponent(Graphics);
         }
@@ -150,11 +172,20 @@ export class GemCell extends Component {
 
         if (!selected) return;
 
-        this.outline.lineWidth = 4;
+        const size = this.cellSize;
+        const inset = Math.max(1, size * 0.04);
+
+        this.outline.lineWidth = Math.max(1, size * 0.08);
         this.outline.strokeColor =
             new Color(255, 175, 35, 255);
 
-        this.outline.roundRect(-29, -29, 58, 58, 8);
+        this.outline.roundRect(
+            -size / 2 + inset,
+            -size / 2 + inset,
+            size - inset * 2,
+            size - inset * 2,
+            Math.max(2, size * 0.15)
+        );
         this.outline.stroke();
     }
 

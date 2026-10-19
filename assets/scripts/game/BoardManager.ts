@@ -1,4 +1,3 @@
-
 import {
     _decorator, Component, Prefab, SpriteFrame,
     instantiate, UITransform, JsonAsset
@@ -23,14 +22,33 @@ export class BoardManager extends Component {
     @property(SpriteFrame)
     redGem: SpriteFrame | null = null;
 
+    @property(SpriteFrame)
+    blackGem: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    whiteGem: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    pinkGem: SpriteFrame | null = null;
+
+    @property
+    maxBoardWidth = 600;
+
+    @property
+    maxBoardHeight = 720;
+
+    @property
+    maxCellSize = 60;
+
+    @property
+    cellGap = 1;
+
     public onCellClicked:
         ((cell: GemCell) => void) | null = null;
 
-    private readonly cellSize = 60;
-    private readonly gap = 3;
-
     private cells: GemCell[] = [];
     private pattern: string[] = [];
+    private initialPattern: string[] | null = null;
 
     @property(JsonAsset)
     levelData: JsonAsset | null = null;
@@ -39,15 +57,35 @@ export class BoardManager extends Component {
         if (char === 'Y') return 'yellow';
         if (char === 'B') return 'blue';
         if (char === 'R') return 'red';
+        if (char === 'K') return 'black';
+        if (char === 'W') return 'white';
+        if (char === 'P') return 'pink';
         throw new Error(`未知颜色 ${char}`);
     }
+
+    private getGemFrames(): GemFrames {
+        return {
+            yellow: this.yellowGem ?? undefined,
+            blue: this.blueGem ?? undefined,
+            red: this.redGem ?? undefined,
+            black: this.blackGem ?? undefined,
+            white: this.whiteGem ?? undefined,
+            pink: this.pinkGem ?? undefined
+        };
+    }
+
     public loadLevel(
-    target: string[],
-    initialSwaps: number[][]
-) {
-    this.pattern = [...target];
-    this.generateBoard(initialSwaps);
-}
+        target: string[],
+        initialSwaps: number[][] = [],
+        initial?: string[]
+    ) {
+        this.pattern = [...target];
+        this.initialPattern = initial ? [...initial] : null;
+
+        this.generateBoard(
+            this.initialPattern ? [] : initialSwaps
+        );
+    }
 
     public generateBoard(
         initialSwaps: number[][] = []
@@ -63,18 +101,16 @@ export class BoardManager extends Component {
 
         this.cells = [];
 
-    const rows = this.pattern.length;
-const cols = this.pattern[0].length;
-        const step = this.cellSize + this.gap;
-
-        const width = cols * step - this.gap;
-        const height = rows * step - this.gap;
-
-        const frames: GemFrames = {
-            yellow: this.yellowGem ?? undefined,
-            blue: this.blueGem ?? undefined,
-            red: this.redGem ?? undefined
-        };
+        const rows = this.pattern.length;
+        const cols = this.pattern[0].length;
+        const gap = this.cellGap;
+        const cellSize = Math.min(
+            this.maxCellSize,
+            (this.maxBoardWidth - (cols - 1) * gap) / cols,
+            (this.maxBoardHeight - (rows - 1) * gap) / rows
+        );
+        const step = cellSize + gap;
+        const frames = this.getGemFrames();
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -82,20 +118,17 @@ const cols = this.pattern[0].length;
                 if (type === '.') continue;
 
                 const target = this.parseColor(type);
+                const initialChar =
+                    this.initialPattern?.[row]?.[col] ?? type;
+                const initialColor = this.parseColor(initialChar);
 
                 const node = instantiate(this.gemCellPrefab);
                 node.name = `Gem_${row}_${col}`;
                 node.parent = this.node;
                 node.setScale(1, 1, 1);
 
-                node.getComponent(UITransform)
-                    ?.setContentSize(60, 60);
-
-                const x = col * step - width / 2
-                    + this.cellSize / 2;
-                const y = height / 2 - row * step
-                    - this.cellSize / 2;
-
+                const x = (col - (cols - 1) / 2) * step;
+                const y = ((rows - 1) / 2 - row) * step;
                 node.setPosition(x, y, 0);
 
                 const cell = node.getComponent(GemCell);
@@ -106,7 +139,14 @@ const cols = this.pattern[0].length;
                     continue;
                 }
 
-                cell.init(row, col, target, target, frames);
+                cell.init(
+                    row,
+                    col,
+                    target,
+                    initialColor,
+                    frames
+                );
+                cell.setDisplaySize(cellSize);
 
                 cell.onPressed = clicked => {
                     this.onCellClicked?.(clicked);
@@ -131,7 +171,7 @@ const cols = this.pattern[0].length;
         }
 
         console.log(
-            `[BoardManager] 创建 ${this.cells.length} 格`
+            `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}`
         );
     }
 

@@ -21,6 +21,10 @@ export interface LevelData {
     cols: number;
     trayCapacity: number;
     target: string[];
+    initial?: string[];
+    shapeMask?: number[][];
+    targetColorMap?: number[][];
+    initialColorMap?: number[][];
     initialSwaps: number[][];
     starThresholds?: StarThresholds;
 }
@@ -301,7 +305,7 @@ export class LevelManager extends Component {
             data.target.some(
                 row => typeof row !== 'string' ||
                     row.length !== data.cols ||
-                    !/^[YBR.]+$/.test(row)
+                    !/^[YBRWKP.]+$/.test(row)
             ) ||
             !Number.isInteger(data.trayCapacity) ||
             data.trayCapacity < 1 ||
@@ -352,6 +356,58 @@ export class LevelManager extends Component {
                     '[LevelManager] 星级阈值配置错误'
                 );
                 return false;
+            }
+        }
+
+        if (data.initial) {
+            const sameShape =
+                data.initial.length === data.rows &&
+                data.initial.every(
+                    (row, r) =>
+                        row.length === data.cols &&
+                        /^[YBRWKP.]+$/.test(row) &&
+                        [...row].every(
+                            (color, c) =>
+                                (color === '.') ===
+                                (data.target[r][c] === '.')
+                        )
+                );
+
+            if (!sameShape) {
+                console.error(
+                    '[LevelManager] 初始布局与目标形状不匹配'
+                );
+                return false;
+            }
+
+            const countColors = (lines: string[]) => {
+                const counts: Record<string, number> = {};
+
+                for (const line of lines) {
+                    for (const color of line) {
+                        if (color === '.') continue;
+                        counts[color] = (counts[color] ?? 0) + 1;
+                    }
+                }
+
+                return counts;
+            };
+
+            const targetCounts = countColors(data.target);
+            const initialCounts = countColors(data.initial);
+            const colors = Object.keys(targetCounts)
+                .concat(Object.keys(initialCounts));
+
+            for (const color of colors) {
+                if (
+                    (targetCounts[color] ?? 0) !==
+                    (initialCounts[color] ?? 0)
+                ) {
+                    console.error(
+                        '[LevelManager] 初始宝珠数量不匹配'
+                    );
+                    return false;
+                }
             }
         }
 

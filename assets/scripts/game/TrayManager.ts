@@ -20,6 +20,15 @@ export class TrayManager extends Component {
     @property(SpriteFrame)
     redGem: SpriteFrame | null = null;
 
+    @property(SpriteFrame)
+    blackGem: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    whiteGem: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    pinkGem: SpriteFrame | null = null;
+
     @property
     capacity = 8;
 
@@ -146,6 +155,13 @@ public resetTray(capacity: number) {
             case 'yellow': return this.yellowGem;
             case 'blue': return this.blueGem;
             case 'red': return this.redGem;
+            case 'black': return this.blackGem;
+            case 'white': return this.whiteGem;
+            case 'pink': return this.pinkGem;
+            default: {
+                const unknown: never = color;
+                return unknown;
+            }
         }
     }
 

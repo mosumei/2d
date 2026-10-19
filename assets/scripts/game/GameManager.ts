@@ -123,13 +123,33 @@ onLoad() {
 
 
     start() {
-        const level = this.debugStartLevel > 0
-            ? this.debugStartLevel
-            : LevelSession.consumeStartLevel();
+        this.showVasePreview();
+    }
 
-        console.log(`[DEBUG] 启动关卡：LEVEL ${level}`);
+    /** 先只显示由蓝白珠子拼出的瓷瓶，不生成旧的方格棋盘。 */
+    private showVasePreview() {
+        if (this.boardManager) {
+            this.boardManager.node.active = false;
+        }
+        if (this.trayManager) {
+            this.trayManager.node.active = false;
+        }
+        if (this.levelLabel) {
+            this.levelLabel.node.active = false;
+        }
+        this.completePanel?.hide();
 
-        this.openLevel(level);
+        const preview = this.node.parent
+            ?.getChildByName('TargetPreview');
+        if (!preview) return;
+
+        preview.active = true;
+        preview.setPosition(0, 40, 0);
+
+        const sprite = preview.getComponent(Sprite);
+        if (sprite) {
+            sprite.enabled = false;
+        }
     }
 
     // ===== 统一处理选中状态 =====
@@ -586,7 +606,8 @@ onLoad() {
             this.trayManager!.resetTray(data.trayCapacity);
             this.boardManager!.loadLevel(
                 data.target,
-                data.initialSwaps
+                data.initialSwaps,
+                data.initial
             );
 
             this.selected = null;
