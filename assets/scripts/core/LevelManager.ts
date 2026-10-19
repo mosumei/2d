@@ -139,10 +139,10 @@ export class LevelManager extends Component {
             ) {
                 this.levelRecords = {};
 
-                for (const [key, value] of Object.entries(
-                    data.levelRecords as Record<string, unknown>
-                )) {
-                    const record = value as {
+                const records = data.levelRecords as Record<string, unknown>;
+
+                for (const key of Object.keys(records)) {
+                    const record = records[key] as {
                         bestStars?: unknown;
                         bestMoves?: unknown;
                     } | null;

@@ -816,7 +816,7 @@
     "levelManager": {
       "__id__": 45
     },
-    "debugStartLevel": 1,
+    "debugStartLevel": 0,
     "audioManager": {
       "__id__": 47
     },

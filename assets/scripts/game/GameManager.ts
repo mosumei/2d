@@ -11,6 +11,7 @@ import { GemMoveAnimator, GemMove } from './GemMoveAnimator';
 import { CompletePanelUI } from '../ui/CompletePanelUI';
 import { LevelManager, LevelData } from '../core/LevelManager';
 import { AudioManager } from '../core/AudioManager'
+import { LevelSession } from '../core/LevelSession';
 
 const { ccclass, property } = _decorator;
 
@@ -122,12 +123,9 @@ onLoad() {
 
 
     start() {
-        const savedLevel =
-            this.levelManager?.getHighestUnlockedLevel() ?? 1;
-
         const level = this.debugStartLevel > 0
             ? this.debugStartLevel
-            : savedLevel;
+            : LevelSession.consumeStartLevel();
 
         console.log(`[DEBUG] 启动关卡：LEVEL ${level}`);
 
