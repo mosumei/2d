@@ -45,10 +45,10 @@
         "offsetY": 0,
         "trimX": 0,
         "trimY": 0,
-        "width": 1122,
-        "height": 1402,
-        "rawWidth": 1122,
-        "rawHeight": 1402,
+        "width": 432,
+        "height": 360,
+        "rawWidth": 432,
+        "rawHeight": 360,
         "borderTop": 0,
         "borderBottom": 0,
         "borderLeft": 0,
@@ -60,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -561,
-            -701,
+            -216,
+            -180,
             0,
-            561,
-            -701,
+            216,
+            -180,
             0,
-            -561,
-            701,
+            -216,
+            180,
             0,
-            561,
-            701,
+            216,
+            180,
             0
           ],
           "indexes": [
@@ -83,12 +83,12 @@
           ],
           "uv": [
             0,
-            1402,
-            1122,
-            1402,
+            360,
+            432,
+            360,
             0,
             0,
-            1122,
+            432,
             0
           ],
           "nuv": [
@@ -102,13 +102,13 @@
             1
           ],
           "minPos": [
-            -561,
-            -701,
+            -216,
+            -180,
             0
           ],
           "maxPos": [
-            561,
-            701,
+            216,
+            180,
             0
           ]
         },
@@ -128,7 +128,7 @@
   "userData": {
     "type": "sprite-frame",
     "fixAlphaTransparencyArtifacts": false,
-    "hasAlpha": false,
+    "hasAlpha": true,
     "redirect": "8c1b255d-ad7d-4166-b6c9-c3a9dde46eb3@6c48a"
   }
 }

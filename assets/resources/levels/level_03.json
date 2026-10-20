@@ -1,0 +1,26 @@
+{
+  "id": 3,
+  "name": "小花",
+  "gridType": "square",
+  "rows": 7,
+  "cols": 7,
+  "trayCapacity": 8,
+  "target": [
+    "...B...",
+    "..BKB..",
+    ".BKKKB.",
+    "BBKBKBB",
+    ".BKKKB.",
+    "..BKB..",
+    "...B..."
+  ],
+  "initialSwaps": [
+    [0, 3, 2, 2],
+    [6, 3, 2, 4],
+    [3, 3, 4, 3]
+  ],
+  "starThresholds": {
+    "five": 3,
+    "four": 6
+  }
+}

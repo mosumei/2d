@@ -1,24 +1,42 @@
-
 import {
-    _decorator, Component, Sprite, SpriteFrame,
-    Color, Node, UITransform, Graphics, Layers
+    _decorator,
+    Component,
+    Sprite,
+    SpriteFrame,
+    Color,
+    Node,
+    UITransform,
+    Graphics,
+    Layers
 } from 'cc';
 
 const { ccclass, property } = _decorator;
 
+// 保留六种颜色编码，方便兼容旧关卡
 export type GemColor =
-    'yellow' | 'blue' | 'red' | 'black' | 'white' | 'pink';
+    | 'yellow'
+    | 'blue'
+    | 'red'
+    | 'black'
+    | 'white'
+    | 'pink';
 
+// 玩家可以移动的立体方块
 export type GemFrames =
     Partial<Record<GemColor, SpriteFrame>>;
 
+// 固定的目标底色方块
+export type TargetFrames =
+    Partial<Record<GemColor, SpriteFrame>>;
+
+// 保留颜色常量，兼容可能引用它的旧脚本
 export const GEM_COLORS: Record<GemColor, Color> = {
-    yellow: new Color(255, 226, 150, 255),
-    blue: new Color(150, 190, 235, 255),
-    red: new Color(245, 180, 180, 255),
-    black: new Color(170, 176, 186, 255),
-    white: new Color(214, 222, 232, 255),
-    pink: new Color(245, 196, 214, 255)
+    yellow: new Color(255, 212, 58, 255),
+    blue: new Color(0, 85, 255, 255),
+    red: new Color(245, 93, 100, 255),
+    black: new Color(68, 68, 68, 255),
+    white: new Color(255, 255, 255, 255),
+    pink: new Color(255, 102, 187, 255)
 };
 
 @ccclass('GemCell')
@@ -32,6 +50,7 @@ export class GemCell extends Component {
 
     public row = 0;
     public col = 0;
+
     public targetColor: GemColor | null = null;
     public currentColor: GemColor | null = null;
 
@@ -39,9 +58,10 @@ export class GemCell extends Component {
         ((cell: GemCell) => void) | null = null;
 
     private frames: GemFrames = {};
-    private targetFrames: GemFrames = {};
+    private targetFrames: TargetFrames = {};
+
+    private displaySize = 60;
     private outline: Graphics | null = null;
-    private cellSize = 60;
 
     onLoad() {
         this.node.on(
@@ -57,29 +77,30 @@ export class GemCell extends Component {
         target: GemColor,
         current: GemColor | null,
         frames: GemFrames,
-        targetFrames: GemFrames = {}
+        targetFrames: TargetFrames = {}
     ) {
         this.row = row;
         this.col = col;
+
         this.targetColor = target;
         this.currentColor = current;
+
         this.frames = frames;
         this.targetFrames = targetFrames;
 
         this.refreshView();
     }
 
+    // BoardManager 调用，自动适配棋盘格尺寸
     public setDisplaySize(size: number) {
-        this.cellSize = size;
-        this.node.getComponent(UITransform)
-            ?.setContentSize(size, size);
+        this.displaySize = Math.max(4, size);
 
-        this.node.getChildByName('CellBackground')
-            ?.getComponent(UITransform)
-            ?.setContentSize(size, size);
-
-        this.outline?.node.getComponent(UITransform)
-            ?.setContentSize(size, size);
+        this.node
+            .getComponent(UITransform)
+            ?.setContentSize(
+                this.displaySize,
+                this.displaySize
+            );
 
         this.refreshView();
     }
@@ -89,10 +110,13 @@ export class GemCell extends Component {
     }
 
     public isCorrect(): boolean {
-        return this.currentColor !== null &&
-            this.currentColor === this.targetColor;
+        return (
+            this.currentColor !== null &&
+            this.currentColor === this.targetColor
+        );
     }
 
+    // 已正确的方块自动锁定
     public canMove(): boolean {
         return !this.isEmpty() && !this.isCorrect();
     }
@@ -106,88 +130,134 @@ export class GemCell extends Component {
         const target = this.targetColor;
         if (!target) return;
 
-        // 底板永远根据目标颜色显示
-        const bg = this.node
+        const size = this.displaySize;
+
+        // 1. 固定底板：永远使用目标颜色
+        const background = this.node
             .getChildByName('CellBackground')
             ?.getComponent(Sprite);
 
-        if (bg) {
-            const targetFrame = this.targetFrames[target] ?? null;
-            bg.sizeMode = Sprite.SizeMode.CUSTOM;
-            bg.spriteFrame = targetFrame;
-            bg.color = targetFrame ? Color.WHITE : GEM_COLORS[target];
-            bg.node.getComponent(UITransform)
-                ?.setContentSize(this.cellSize, this.cellSize);
+        if (background) {
+            const targetFrame =
+                this.targetFrames[target];
+
+            background.node.active = true;
+            background.sizeMode =
+                Sprite.SizeMode.CUSTOM;
+
+            if (targetFrame) {
+                background.spriteFrame = targetFrame;
+                background.color = Color.WHITE;
+            } else {
+                // 旧关卡未配置目标图片时，使用纯色后备显示
+                background.spriteFrame = null;
+                background.color = GEM_COLORS[target];
+            }
+
+            background
+                .getComponent(UITransform)
+                ?.setContentSize(size, size);
         }
 
-        // 当前放置的宝石
+        // 2. 上层：当前可交换的立体方块
         if (this.gemSprite) {
-            const color = this.currentColor;
-            this.gemSprite.node.active = color !== null;
+            const current = this.currentColor;
 
-            if (color) {
-                const gemSize = this.cellSize * 0.78;
-                this.gemSprite.sizeMode = Sprite.SizeMode.CUSTOM;
-                this.gemSprite.spriteFrame = this.frames[color] ?? null;
+            this.gemSprite.node.active =
+                current !== null;
+
+            if (current !== null) {
+                this.gemSprite.sizeMode =
+                    Sprite.SizeMode.CUSTOM;
+
+                this.gemSprite.spriteFrame =
+                    this.frames[current] ?? null;
+
                 this.gemSprite.color = Color.WHITE;
+
+                const gemSize = size * 0.5;
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);
             }
         }
 
-        // 仅在格子为空时显示淡色目标宝石
+        // 3. 空位：显示淡化的目标提示
         if (this.targetMarker) {
-            this.targetMarker.node.active =
-                this.currentColor === null;
+            const empty = this.isEmpty();
 
-            this.targetMarker.sizeMode =
-                Sprite.SizeMode.CUSTOM;
+            this.targetMarker.node.active = empty;
 
-            this.targetMarker.spriteFrame =
-                this.frames[target] ?? null;
+            if (empty) {
+                this.targetMarker.sizeMode =
+                    Sprite.SizeMode.CUSTOM;
 
-            this.targetMarker.color =
-                new Color(255, 255, 255, 85);
+                this.targetMarker.spriteFrame =
+                    this.targetFrames[target] ??
+                    this.frames[target] ??
+                    null;
 
-            const markerSize = this.cellSize * 0.72;
-            this.targetMarker
-                .getComponent(UITransform)
-                ?.setContentSize(markerSize, markerSize);
+                this.targetMarker.color =
+                    new Color(255, 255, 255, 90);
+
+                this.targetMarker
+                    .getComponent(UITransform)
+                    ?.setContentSize(
+                        size * 0.88,
+                        size * 0.88
+                    );
+            }
         }
+
+        // 选择边框尺寸跟随格子尺寸更新
+        this.outline?.clear();
     }
 
-    // 显示或隐藏选中边框
     public setSelected(selected: boolean) {
         if (!this.outline) {
-            const outlineNode = new Node('SelectionOutline');
+            const outlineNode =
+                new Node('SelectionOutline');
+
             outlineNode.layer = Layers.Enum.UI_2D;
             outlineNode.parent = this.node;
 
-            outlineNode.addComponent(UITransform)
-                .setContentSize(this.cellSize, this.cellSize);
+            outlineNode
+                .addComponent(UITransform)
+                .setContentSize(
+                    this.displaySize,
+                    this.displaySize
+                );
 
-            this.outline = outlineNode.addComponent(Graphics);
+            this.outline =
+                outlineNode.addComponent(Graphics);
         }
 
         this.outline.clear();
 
         if (!selected) return;
 
-        const size = this.cellSize;
-        const inset = Math.max(1, size * 0.04);
+        const half = this.displaySize / 2;
+        const inset = Math.min(
+            2,
+            this.displaySize * 0.06
+        );
 
-        this.outline.lineWidth = Math.max(1, size * 0.08);
+        this.outline.lineWidth = Math.max(
+            1.5,
+            this.displaySize * 0.06
+        );
+
         this.outline.strokeColor =
-            new Color(255, 175, 35, 255);
+            new Color(255, 205, 55, 255);
 
         this.outline.roundRect(
-            -size / 2 + inset,
-            -size / 2 + inset,
-            size - inset * 2,
-            size - inset * 2,
-            Math.max(2, size * 0.15)
+            -half + inset,
+            -half + inset,
+            this.displaySize - inset * 2,
+            this.displaySize - inset * 2,
+            Math.max(2, this.displaySize * 0.1)
         );
+
         this.outline.stroke();
     }
 

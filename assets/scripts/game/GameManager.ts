@@ -1,7 +1,8 @@
 
 import {
     _decorator, Component, Label, Sprite,
-    director
+    director, Node, Layers, Button, UITransform,
+    Graphics, Color
 } from 'cc';
 
 import { BoardManager } from './BoardManager';
@@ -12,6 +13,9 @@ import { CompletePanelUI } from '../ui/CompletePanelUI';
 import { LevelManager, LevelData } from '../core/LevelManager';
 import { AudioManager } from '../core/AudioManager'
 import { LevelSession } from '../core/LevelSession';
+import { ArtifactCollectionManager } from '../core/ArtifactCollectionManager';
+import { ArtifactCollectionUI } from '../ui/ArtifactCollectionUI';
+import { ToolsBarUI } from '../ui/ToolsBarUI';
 
 const { ccclass, property } = _decorator;
 
@@ -40,6 +44,7 @@ export class GameManager extends Component {
 
     // ===== 游戏内部状态 =====
     private selected: Selection = null;
+    private selectedGroup: GemCell[] = [];
 
     private finished = false;
 
@@ -72,6 +77,8 @@ export class GameManager extends Component {
     }
     @property(CompletePanelUI)
     completePanel: CompletePanelUI | null = null;
+    @property(ArtifactCollectionUI)
+    collectionPanel: ArtifactCollectionUI | null = null;
     @property(LevelManager)
     levelManager: LevelManager | null = null;
 
@@ -115,11 +122,68 @@ onLoad() {
             this.restartLevel();
         };
 
+        this.completePanel.onCollection = () => {
+            this.completePanel?.hide();
+            this.collectionPanel?.show();
+        };
+
         this.completePanel.onHome = () => {
             director.loadScene('MainMenu');
         };
     }
+
+    if (!this.collectionPanel && this.node.parent) {
+        const panelNode = new Node('CollectionPanel');
+        panelNode.layer = Layers.Enum.UI_2D;
+        panelNode.active = false;
+        panelNode.parent = this.node.parent;
+        this.collectionPanel = panelNode.addComponent(ArtifactCollectionUI);
+    }
+
+    this.ensureCollectionEntry();
 }
+
+    private ensureCollectionEntry() {
+        const canvas = this.node.parent;
+        if (!canvas || canvas.getChildByName('CollectionEntry')) return;
+
+        const node = new Node('CollectionEntry');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = canvas;
+        node.setPosition(230, 575, 0);
+        node.addComponent(UITransform).setContentSize(150, 48);
+
+        const graphics = node.addComponent(Graphics);
+        graphics.fillColor = new Color(255, 248, 236, 255);
+        graphics.roundRect(-75, -24, 150, 48, 14);
+        graphics.fill();
+
+        const labelNode = new Node('ButtonLabel');
+        labelNode.layer = Layers.Enum.UI_2D;
+        labelNode.parent = node;
+        labelNode.addComponent(UITransform).setContentSize(136, 36);
+        const label = labelNode.addComponent(Label);
+        label.useSystemFont = true;
+        label.fontFamily = 'PingFang SC';
+        label.string = '我的文物';
+        label.fontSize = 22;
+        label.lineHeight = 28;
+        label.color = new Color(92, 58, 32, 255);
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, () => {
+            this.collectionPanel?.show();
+        }, this);
+
+        const complete = canvas.getChildByName('CompletePanel');
+        if (complete) {
+            node.setSiblingIndex(complete.getSiblingIndex());
+        }
+    }
 
 
     start() {
@@ -137,6 +201,14 @@ onLoad() {
             this.levelLabel.node.active = true;
         }
 
+        const tools = this.node.parent?.getChildByName('ToolsContainer');
+        if (tools) {
+            tools.active = true;
+            tools.setPosition(0, -522, 0);
+            const bar = tools.getComponent(ToolsBarUI) ?? tools.addComponent(ToolsBarUI);
+            bar.build();
+        }
+
         const level = this.debugStartLevel > 0
             ? this.debugStartLevel
             : LevelSession.consumeStartLevel();
@@ -148,9 +220,10 @@ onLoad() {
     // ===== 统一处理选中状态 =====
 
     private clearSelection() {
-        if (this.selected?.type === 'board') {
-            this.selected.cell.setSelected(false);
+        for (const cell of this.selectedGroup) {
+            cell.setSelected(false);
         }
+        this.selectedGroup = [];
 
         this.trayManager?.setSelectedIndex(-1);
         this.selected = null;
@@ -159,10 +232,14 @@ onLoad() {
     private selectBoard(cell: GemCell) {
         this.clearSelection();
 
-        if (!cell.canMove()) return;
+        if (!cell.canMove() || !cell.currentColor) return;
 
         this.selected = { type: 'board', cell };
-        cell.setSelected(true);
+        this.selectedGroup = this.getAdjacentWrongCells(cell);
+
+        for (const item of this.selectedGroup) {
+            item.setSelected(true);
+        }
         this.audioManager?.playSelect();
     }
 
@@ -184,16 +261,16 @@ onLoad() {
 
         const selection = this.selected;
 
-        // 没有选中任何宝石
+        // 没有选中时只选中，点底部托盘后才放下
         if (!selection) {
             this.selectBoard(cell);
             return;
         }
 
-        // 点击同一格，取消选中
+        // 再点这片已选中的格子，取消选中
         if (
             selection.type === 'board' &&
-            selection.cell === cell
+            this.selectedGroup.indexOf(cell) >= 0
         ) {
             this.clearSelection();
             return;
@@ -212,6 +289,117 @@ onLoad() {
             // 托盘宝石 → 棋盘格子
             this.moveFromTray(selection.index, cell);
         }
+    }
+
+    // 从点中的格子出发，上下左右连成一片、同色且放错的格子。
+    private getAdjacentWrongCells(origin: GemCell): GemCell[] {
+        const color = origin.currentColor;
+        const group: GemCell[] = [];
+        if (!color) return group;
+
+        const steps = [
+            [-1, 0],
+            [1, 0],
+            [0, -1],
+            [0, 1]
+        ];
+        const pending = [origin];
+        const seen = new Set<string>();
+
+        while (pending.length > 0) {
+            const cell = pending.pop();
+            if (!cell) continue;
+
+            const key = `${cell.row},${cell.col}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            if (!cell.canMove() || cell.currentColor !== color) continue;
+
+            group.push(cell);
+            for (const step of steps) {
+                const next = this.boardManager?.getCell(
+                    cell.row + step[0],
+                    cell.col + step[1]
+                );
+                if (next) pending.push(next);
+            }
+        }
+
+        return group;
+    }
+
+    // 只收当前选中的这一小片。托盘空位不够时，先拿走点中的那颗。
+    private takeSameColorToTray(origin: GemCell): boolean {
+        const tray = this.trayManager;
+        const color = origin.currentColor;
+        if (!tray || !color || !origin.canMove() || this.isAnimating) {
+            return false;
+        }
+
+        const slots = tray.getEmptyIndices();
+        const cells = this.selectedGroup.length > 0
+            ? [...this.selectedGroup]
+            : this.getAdjacentWrongCells(origin);
+
+        const batch: { cell: GemCell; color: GemColor; slot: number }[] = [];
+        for (let i = 0; i < cells.length && batch.length < slots.length; i++) {
+            const cell = cells[i];
+            const gemColor = cell.currentColor;
+            const frame = cell.gemSprite?.spriteFrame;
+            const slot = slots[batch.length];
+            if (!gemColor || !frame || !tray.getSlotNode(slot)) continue;
+            batch.push({ cell, color: gemColor, slot });
+        }
+
+        if (batch.length === 0) return false;
+
+        if (!this.moveAnimator) {
+            for (const item of batch) {
+                if (tray.setGemAt(item.slot, item.color)) {
+                    item.cell.setCurrentColor(null);
+                }
+            }
+            this.clearSelection();
+            this.audioManager?.playMove();
+            this.countMove();
+            this.checkCompleted();
+            return true;
+        }
+
+        this.isAnimating = true;
+        this.clearSelection();
+
+        const moves: GemMove[] = [];
+        for (const item of batch) {
+            const slotNode = tray.getSlotNode(item.slot);
+            const frame = item.cell.gemSprite?.spriteFrame;
+            if (!slotNode || !frame) continue;
+            if (item.cell.gemSprite) {
+                item.cell.gemSprite.node.active = false;
+            }
+            moves.push({
+                frame,
+                from: item.cell.node,
+                to: slotNode,
+                startSize: 46,
+                endSize: 44
+            });
+        }
+
+        this.moveAnimator.play(moves, () => {
+            for (const item of batch) {
+                tray.setGemAt(item.slot, item.color);
+                item.cell.setCurrentColor(null);
+            }
+
+            this.isAnimating = false;
+            this.audioManager?.playMove();
+            this.countMove();
+            this.checkCompleted();
+        });
+
+        return true;
     }
 
     // 棋盘内部移动或交换
@@ -428,61 +616,14 @@ onLoad() {
             return;
         }
 
-        // 棋盘 → 托盘
+        // 已经选中棋盘珠子时，点空托盘同样只收这一种放错的颜色
         if (selection.type === 'board') {
             if (!tray.isEmptyAt(index)) {
                 this.selectTray(index);
                 return;
             }
 
-            const cell = selection.cell;
-            const color = cell.currentColor;
-
-            if (!cell.canMove() || !color) return;
-
-            const frame = cell.gemSprite?.spriteFrame;
-            const slotNode = tray.getSlotNode(index);
-
-            if (!frame || !slotNode) return;
-
-            if (!this.moveAnimator) {
-                if (tray.setGemAt(index, color)) {
-                    cell.setCurrentColor(null);
-                    this.clearSelection();
-                    this.audioManager?.playMove();
-                    this.countMove();
-                }
-                return;
-            }
-
-            this.isAnimating = true;
-            this.clearSelection();
-
-            // 隐藏原宝石，保留底色
-            if (cell.gemSprite) {
-                cell.gemSprite.node.active = false;
-            }
-
-            this.moveAnimator.play(
-                [{
-                    frame,
-                    from: cell.node,
-                    to: slotNode,
-                    startSize: 46,
-                    endSize: 44
-                }],
-                () => {
-                    // 动画完成后更新数据
-                    tray.setGemAt(index, color);
-                    cell.setCurrentColor(null);
-
-                    this.isAnimating = false;
-                    this.audioManager?.playMove();
-                    this.countMove();
-                    this.checkCompleted();
-                }
-            );
-
+            this.takeSameColorToTray(selection.cell);
             return;
         }
 
@@ -578,13 +719,14 @@ onLoad() {
         this.clearSelection();
         this.finished = true;
         this.completePanel?.hide();
+        this.collectionPanel?.hide();
 
         this.levelManager.loadLevel(level, (data) => {
             if (!this.isValid || !data) {
                 if (this.isValid) {
                     this.finished = true;
                     if (returnToComplete) {
-                  this.completePanel?.show(3);
+                  this.completePanel?.show(3, this.levelManager?.getCurrentLevel() ?? 1);
                     }
                 }
                 return;
@@ -676,7 +818,9 @@ onLoad() {
             `Moves: ${this.moveCount}, Stars: ${stars}`
         );
 
-        this.completePanel?.show(stars);
+        // 调试模式也允许本机测试收藏，正式发布前请将 debugStartLevel 设为 0。
+        const newlyCollected = ArtifactCollectionManager.collect(level);
+        this.completePanel?.show(stars, level, newlyCollected);
     }
     onDestroy() {
         this.clearSelection();

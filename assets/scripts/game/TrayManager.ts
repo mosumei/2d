@@ -155,6 +155,14 @@ public resetTray(capacity: number) {
         return this.gems.indexOf(null);
     }
 
+    public getEmptyIndices(): number[] {
+        const indices: number[] = [];
+        for (let i = 0; i < this.gems.length; i++) {
+            if (this.gems[i] === null) indices.push(i);
+        }
+        return indices;
+    }
+
     private getFrame(color: GemColor): SpriteFrame | null {
         switch (color) {
             case 'yellow': return this.yellowGem;

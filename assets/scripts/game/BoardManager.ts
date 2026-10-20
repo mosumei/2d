@@ -3,7 +3,12 @@ import {
     instantiate, UITransform, JsonAsset
 } from 'cc';
 
-import { GemCell, GemColor, GemFrames } from './GemCell';
+import {
+    GemCell,
+    GemColor,
+    GemFrames,
+    TargetFrames
+} from './GemCell';
 import { loadTileSet, TileFrames } from './TileSprites';
 
 const { ccclass, property } = _decorator;
@@ -31,6 +36,12 @@ export class BoardManager extends Component {
 
     @property(SpriteFrame)
     pinkGem: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    blueTarget: SpriteFrame | null = null;
+
+    @property(SpriteFrame)
+    blackTarget: SpriteFrame | null = null;
 
     @property
     maxBoardWidth = 600;
@@ -117,6 +128,10 @@ export class BoardManager extends Component {
         );
         const step = cellSize + gap;
         const frames = this.getGemFrames();
+        const targetFrames: TargetFrames = {
+            blue: this.blueTarget ?? this.targetFrames.blue,
+            black: this.blackTarget ?? this.targetFrames.black
+        };
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -151,7 +166,7 @@ export class BoardManager extends Component {
                     target,
                     initialColor,
                     frames,
-                    this.targetFrames
+                    targetFrames
                 );
                 cell.setDisplaySize(cellSize);
 
@@ -194,6 +209,10 @@ export class BoardManager extends Component {
         const temp = a.currentColor;
         a.setCurrentColor(b.currentColor);
         b.setCurrentColor(temp);
+    }
+
+    public getMovableCells(): GemCell[] {
+        return this.cells.filter(cell => cell.canMove());
     }
 
     public getCell(

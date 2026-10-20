@@ -29,7 +29,7 @@ export class LevelSelectUI extends Component {
 
     // 当前实际制作的关卡数量
     @property
-    totalLevels = 4;
+    totalLevels = 3;
 
     // 每行多少个按钮
     @property

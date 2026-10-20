@@ -1,0 +1,24 @@
+{
+  "id": 2,
+  "name": "小十字",
+  "gridType": "square",
+  "rows": 6,
+  "cols": 6,
+  "trayCapacity": 8,
+  "target": [
+    "..BB..",
+    ".BKKK.",
+    "BBKBBB",
+    "BBKBBB",
+    ".BKKK.",
+    "..BB.."
+  ],
+  "initialSwaps": [
+    [0, 2, 1, 2],
+    [5, 3, 4, 3]
+  ],
+  "starThresholds": {
+    "five": 2,
+    "four": 4
+  }
+}
