@@ -5,6 +5,7 @@ import {
 } from 'cc';
 
 import type { GemColor } from './GemCell';
+import { loadTileSet, TileFrames } from './TileSprites';
 
 const { ccclass, property } = _decorator;
 
@@ -50,6 +51,7 @@ public getFirstEmptySlot(): number {
     private slots: Node[] = [];
     private gems: (GemColor | null)[] = [];
     private selectedIndex = -1;
+    private tileFrames: TileFrames = {};
 
     private readonly slotSize = 60;
     private readonly gemSize = 44;
@@ -57,7 +59,10 @@ public getFirstEmptySlot(): number {
 
 public resetTray(capacity: number) {
     this.capacity = capacity;
-    this.createSlots();
+    loadTileSet().then((set) => {
+        this.tileFrames = set.tiles;
+        this.createSlots();
+    });
 }
 
     private createSlots() {
@@ -153,9 +158,9 @@ public resetTray(capacity: number) {
     private getFrame(color: GemColor): SpriteFrame | null {
         switch (color) {
             case 'yellow': return this.yellowGem;
-            case 'blue': return this.blueGem;
+            case 'blue': return this.tileFrames.blue ?? this.blueGem;
             case 'red': return this.redGem;
-            case 'black': return this.blackGem;
+            case 'black': return this.tileFrames.black ?? this.blackGem;
             case 'white': return this.whiteGem;
             case 'pink': return this.pinkGem;
             default: {

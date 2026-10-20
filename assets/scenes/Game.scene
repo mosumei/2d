@@ -355,7 +355,7 @@
       "__id__": 2
     },
     "_children": [],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 9
@@ -627,7 +627,7 @@
       "__id__": 2
     },
     "_children": [],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 16
@@ -902,7 +902,7 @@
       "__id__": 2
     },
     "_children": [],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 24
@@ -966,7 +966,7 @@
     "levelManager": {
       "__id__": 49
     },
-    "debugStartLevel": 0,
+    "debugStartLevel": 1,
     "audioManager": {
       "__id__": 51
     },

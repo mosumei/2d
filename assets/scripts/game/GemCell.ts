@@ -39,6 +39,7 @@ export class GemCell extends Component {
         ((cell: GemCell) => void) | null = null;
 
     private frames: GemFrames = {};
+    private targetFrames: GemFrames = {};
     private outline: Graphics | null = null;
     private cellSize = 60;
 
@@ -55,13 +56,15 @@ export class GemCell extends Component {
         col: number,
         target: GemColor,
         current: GemColor | null,
-        frames: GemFrames
+        frames: GemFrames,
+        targetFrames: GemFrames = {}
     ) {
         this.row = row;
         this.col = col;
         this.targetColor = target;
         this.currentColor = current;
         this.frames = frames;
+        this.targetFrames = targetFrames;
 
         this.refreshView();
     }
@@ -109,8 +112,12 @@ export class GemCell extends Component {
             ?.getComponent(Sprite);
 
         if (bg) {
+            const targetFrame = this.targetFrames[target] ?? null;
             bg.sizeMode = Sprite.SizeMode.CUSTOM;
-            bg.color = GEM_COLORS[target];
+            bg.spriteFrame = targetFrame;
+            bg.color = targetFrame ? Color.WHITE : GEM_COLORS[target];
+            bg.node.getComponent(UITransform)
+                ?.setContentSize(this.cellSize, this.cellSize);
         }
 
         // 当前放置的宝石
@@ -119,15 +126,10 @@ export class GemCell extends Component {
             this.gemSprite.node.active = color !== null;
 
             if (color) {
-                this.gemSprite.sizeMode =
-                    Sprite.SizeMode.CUSTOM;
-
-                this.gemSprite.spriteFrame =
-                    this.frames[color] ?? null;
-
+                const gemSize = this.cellSize * 0.78;
+                this.gemSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                this.gemSprite.spriteFrame = this.frames[color] ?? null;
                 this.gemSprite.color = Color.WHITE;
-
-                const gemSize = this.cellSize * 0.92;
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);

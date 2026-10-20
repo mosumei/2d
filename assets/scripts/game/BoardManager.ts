@@ -4,6 +4,7 @@ import {
 } from 'cc';
 
 import { GemCell, GemColor, GemFrames } from './GemCell';
+import { loadTileSet, TileFrames } from './TileSprites';
 
 const { ccclass, property } = _decorator;
 
@@ -49,6 +50,8 @@ export class BoardManager extends Component {
     private cells: GemCell[] = [];
     private pattern: string[] = [];
     private initialPattern: string[] | null = null;
+    private tileFrames: TileFrames = {};
+    private targetFrames: TileFrames = {};
 
     @property(JsonAsset)
     levelData: JsonAsset | null = null;
@@ -66,9 +69,9 @@ export class BoardManager extends Component {
     private getGemFrames(): GemFrames {
         return {
             yellow: this.yellowGem ?? undefined,
-            blue: this.blueGem ?? undefined,
+            blue: this.tileFrames.blue ?? this.blueGem ?? undefined,
             red: this.redGem ?? undefined,
-            black: this.blackGem ?? undefined,
+            black: this.tileFrames.black ?? this.blackGem ?? undefined,
             white: this.whiteGem ?? undefined,
             pink: this.pinkGem ?? undefined
         };
@@ -81,10 +84,13 @@ export class BoardManager extends Component {
     ) {
         this.pattern = [...target];
         this.initialPattern = initial ? [...initial] : null;
+        const swaps = this.initialPattern ? [] : initialSwaps;
 
-        this.generateBoard(
-            this.initialPattern ? [] : initialSwaps
-        );
+        loadTileSet().then((set) => {
+            this.tileFrames = set.tiles;
+            this.targetFrames = set.targets;
+            this.generateBoard(swaps);
+        });
     }
 
     public generateBoard(
@@ -144,7 +150,8 @@ export class BoardManager extends Component {
                     col,
                     target,
                     initialColor,
-                    frames
+                    frames,
+                    this.targetFrames
                 );
                 cell.setDisplaySize(cellSize);
 
