@@ -215,6 +215,10 @@ export class BoardManager extends Component {
         return this.cells.filter(cell => cell.canMove());
     }
 
+    public getCells(): GemCell[] {
+        return this.cells;
+    }
+
     public getCell(
         row: number,
         col: number

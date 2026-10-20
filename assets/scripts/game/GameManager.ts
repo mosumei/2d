@@ -52,6 +52,8 @@ export class GameManager extends Component {
     private isAnimating = false;
 
     private moveCount = 0;
+    private wandMode = false;
+    private toolsBar: ToolsBarUI | null = null;
 
     public getMoveCount(): number {
         return this.moveCount;
@@ -150,24 +152,39 @@ onLoad() {
         const node = new Node('CollectionEntry');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(230, 575, 0);
-        node.addComponent(UITransform).setContentSize(150, 48);
+        node.setPosition(236, 588, 0);
+        node.addComponent(UITransform).setContentSize(176, 52);
 
         const graphics = node.addComponent(Graphics);
-        graphics.fillColor = new Color(255, 248, 236, 255);
-        graphics.roundRect(-75, -24, 150, 48, 14);
+        graphics.fillColor = new Color(120, 78, 36, 80);
+        graphics.roundRect(-86, -30, 176, 52, 18);
+        graphics.fill();
+        graphics.fillColor = new Color(255, 246, 226, 255);
+        graphics.roundRect(-88, -26, 176, 52, 18);
+        graphics.fill();
+        graphics.strokeColor = new Color(196, 142, 64, 255);
+        graphics.lineWidth = 3;
+        graphics.roundRect(-88, -26, 176, 52, 18);
+        graphics.stroke();
+        graphics.fillColor = new Color(92, 64, 42, 255);
+        graphics.circle(-58, 0, 12);
+        graphics.fill();
+        graphics.fillColor = new Color(255, 214, 120, 255);
+        graphics.circle(-58, 0, 6);
         graphics.fill();
 
         const labelNode = new Node('ButtonLabel');
         labelNode.layer = Layers.Enum.UI_2D;
         labelNode.parent = node;
-        labelNode.addComponent(UITransform).setContentSize(136, 36);
+        labelNode.setPosition(16, 0, 0);
+        labelNode.addComponent(UITransform).setContentSize(112, 36);
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
         label.string = '我的文物';
         label.fontSize = 22;
         label.lineHeight = 28;
+        label.isBold = true;
         label.color = new Color(92, 58, 32, 255);
         label.horizontalAlign = Label.HorizontalAlign.CENTER;
         label.verticalAlign = Label.VerticalAlign.CENTER;
@@ -207,6 +224,8 @@ onLoad() {
             tools.setPosition(0, -522, 0);
             const bar = tools.getComponent(ToolsBarUI) ?? tools.addComponent(ToolsBarUI);
             bar.build();
+            this.toolsBar = bar;
+            bar.onWandClick = () => this.toggleWand();
         }
 
         const level = this.debugStartLevel > 0
@@ -259,6 +278,11 @@ onLoad() {
         if (this.isAnimating) return;
         if (this.finished) return;
 
+        if (this.wandMode) {
+            this.useWand(cell);
+            return;
+        }
+
         const selection = this.selected;
 
         // 没有选中时只选中，点底部托盘后才放下
@@ -289,6 +313,64 @@ onLoad() {
             // 托盘宝石 → 棋盘格子
             this.moveFromTray(selection.index, cell);
         }
+    }
+
+    private toggleWand() {
+        if (this.finished || this.isAnimating) return;
+        this.setWandMode(!this.wandMode);
+        this.audioManager?.playClick();
+    }
+
+    private setWandMode(armed: boolean) {
+        this.wandMode = armed;
+        if (armed) this.clearSelection();
+        this.toolsBar?.setWandArmed(armed);
+    }
+
+    private useWand(cell: GemCell) {
+        if (!cell.canMove()) return;
+
+        const partner = this.findWandPartner(cell);
+        if (!partner) {
+            console.log('[Wand] 没有找到可以归位的交换');
+            return;
+        }
+
+        const frameA = cell.gemSprite?.spriteFrame;
+        const frameB = partner.gemSprite?.spriteFrame;
+        if (!frameA || (partner.currentColor && !frameB)) return;
+
+        this.setWandMode(false);
+        this.moveOnBoard(cell, partner);
+    }
+
+    private findWandPartner(origin: GemCell): GemCell | null {
+        const cells = this.boardManager?.getCells() ?? [];
+        let best: GemCell | null = null;
+        let bestScore = 0;
+
+        for (const cell of cells) {
+            if (cell === origin || cell.isCorrect()) continue;
+            const score = this.wandScore(origin, cell);
+            if (score > bestScore) {
+                best = cell;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private wandScore(origin: GemCell, other: GemCell): number {
+        const originFixed = other.currentColor !== null &&
+            other.currentColor === origin.targetColor;
+        const otherFixed = origin.currentColor !== null &&
+            origin.currentColor === other.targetColor;
+
+        if (originFixed && otherFixed) return 3;
+        if (originFixed) return 2;
+        if (otherFixed) return 1;
+        return 0;
     }
 
     // 从点中的格子出发，上下左右连成一片、同色且放错的格子。
@@ -600,6 +682,11 @@ onLoad() {
             !this.trayManager
         ) return;
 
+        if (this.wandMode) {
+            this.setWandMode(false);
+            return;
+        }
+
         const tray = this.trayManager;
         const selection = this.selected;
 
@@ -747,6 +834,7 @@ onLoad() {
 
             this.selected = null;
             this.finished = false;
+            this.setWandMode(false);
             this.isAnimating = false;
             this.moveCount = 0;
             this.audioManager?.playBGM();
