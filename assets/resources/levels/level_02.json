@@ -1,24 +1,29 @@
 {
   "id": 2,
-  "name": "小十字",
+  "name": "金蓝十字",
   "gridType": "square",
   "rows": 6,
   "cols": 6,
   "trayCapacity": 8,
   "target": [
-    "..BB..",
-    ".BKKK.",
-    "BBKBBB",
-    "BBKBBB",
-    ".BKKK.",
-    "..BB.."
+    "..YY..",
+    ".YBBY.",
+    "YYBBKK",
+    "BBKKBB",
+    ".KKBY.",
+    "..YY.."
   ],
-  "initialSwaps": [
-    [0, 2, 1, 2],
-    [5, 3, 4, 3]
+  "initial": [
+    "..YB..",
+    ".YKKB.",
+    "YYBBKK",
+    "BBYYBB",
+    ".KKBY.",
+    "..YY.."
   ],
+  "initialSwaps": [],
   "starThresholds": {
-    "five": 2,
-    "four": 4
+    "five": 4,
+    "four": 8
   }
 }

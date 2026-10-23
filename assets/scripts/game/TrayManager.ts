@@ -51,6 +51,7 @@ public getFirstEmptySlot(): number {
     private slots: Node[] = [];
     private gems: (GemColor | null)[] = [];
     private selectedIndex = -1;
+    private liftedSlots: number[] = [];
     private tileFrames: TileFrames = {};
 
     private readonly slotSize = 60;
@@ -73,6 +74,7 @@ public resetTray(capacity: number) {
         this.slots = [];
         this.gems = Array(this.capacity).fill(null);
         this.selectedIndex = -1;
+        this.liftedSlots = [];
 
         const step = this.slotSize + this.slotGap;
         const width = this.capacity * step - this.slotGap;
@@ -111,7 +113,7 @@ public resetTray(capacity: number) {
         graphics.clear();
 
         const size = this.slotSize;
-        const selected = index === this.selectedIndex;
+        const selected = this.liftedSlots.indexOf(index) >= 0;
 
         graphics.fillColor =
             new Color(245, 249, 255, 245);
@@ -134,11 +136,36 @@ public resetTray(capacity: number) {
     }
 
     public setSelectedIndex(index: number) {
-        const old = this.selectedIndex;
-        this.selectedIndex = index;
+        this.setLiftedSlots(index >= 0 ? [index] : []);
+    }
 
-        if (old >= 0) this.drawSlot(old);
-        if (index >= 0) this.drawSlot(index);
+    // 同一色的槽一起描边，并把棋子弹高，表示已拿起、尚未放回拼图。
+    public setLiftedSlots(indices: number[]) {
+        const previous = this.liftedSlots;
+        this.liftedSlots = [...indices];
+        this.selectedIndex = indices.length > 0 ? indices[0] : -1;
+
+        const dirty: number[] = [];
+        for (const index of previous) {
+            if (dirty.indexOf(index) < 0) dirty.push(index);
+        }
+        for (const index of indices) {
+            if (dirty.indexOf(index) < 0) dirty.push(index);
+        }
+        for (const index of dirty) {
+            if (!this.slots[index]) continue;
+            this.drawSlot(index);
+            this.applyLift(index);
+        }
+    }
+
+    private applyLift(index: number) {
+        const gem = this.slots[index]?.getChildByName('GemImage');
+        if (!gem) return;
+        const lifted = this.liftedSlots.indexOf(index) >= 0;
+        gem.setPosition(0, lifted ? 16 : 0, 0);
+        const scale = lifted ? 1.08 : 1;
+        gem.setScale(scale, scale, 1);
     }
 
     public getGemAt(index: number): GemColor | null {
@@ -165,12 +192,13 @@ public resetTray(capacity: number) {
 
     private getFrame(color: GemColor): SpriteFrame | null {
         switch (color) {
-            case 'yellow': return this.yellowGem;
+            case 'yellow': return this.tileFrames.yellow ?? this.yellowGem;
             case 'blue': return this.tileFrames.blue ?? this.blueGem;
             case 'red': return this.redGem;
             case 'black': return this.tileFrames.black ?? this.blackGem;
             case 'white': return this.whiteGem;
             case 'pink': return this.pinkGem;
+            case 'green': return this.tileFrames.green ?? null;
             default: {
                 const unknown: never = color;
                 return unknown;
@@ -210,6 +238,7 @@ public resetTray(capacity: number) {
         }
 
         this.drawSlot(index);
+        this.applyLift(index);
         return true;
     }
 

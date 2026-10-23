@@ -39,6 +39,9 @@ export class CompletePanelUI extends Component {
         this.restartButton?.node.on(Button.EventType.CLICK, this.handleRestart, this);
         this.homeButton?.node.on(Button.EventType.CLICK, this.handleHome, this);
         this.collectionButton?.node.on(Button.EventType.CLICK, this.handleCollection, this);
+        this.ensurePlainButtonLabel(this.nextButton, '下一关');
+        this.ensurePlainButtonLabel(this.restartButton, '重来');
+        this.ensurePlainButtonLabel(this.homeButton, '主页');
     }
 
     public show(earnedStars: number = 3, level: number = 1, newlyCollected = false) {
@@ -157,6 +160,31 @@ export class CompletePanelUI extends Component {
         this.artifactName?.node.setPosition(0, -62, 0);
         this.rewardStatus?.node.setPosition(0, -96, 0);
         this.collectionButton?.node.setPosition(0, -155, 0);
+    }
+
+    private ensurePlainButtonLabel(button: Button | null, text: string) {
+        const node = button?.node;
+        if (!node || node.getChildByName('PlainLabel')) return;
+
+        const labelNode = new Node('PlainLabel');
+        labelNode.layer = Layers.Enum.UI_2D;
+        labelNode.parent = node;
+        const parentSize = node.getComponent(UITransform)?.contentSize;
+        labelNode.addComponent(UITransform).setContentSize(
+            parentSize?.width ?? 180,
+            parentSize?.height ?? 48
+        );
+        const label = labelNode.addComponent(Label);
+        label.useSystemFont = true;
+        label.fontFamily = 'PingFang SC';
+        label.string = text;
+        label.fontSize = 28;
+        label.lineHeight = 34;
+        label.isBold = true;
+        label.color = new Color(92, 58, 32, 255);
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+        label.overflow = Label.Overflow.SHRINK;
     }
 
     private ensureDimBackground() {

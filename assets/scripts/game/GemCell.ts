@@ -19,7 +19,8 @@ export type GemColor =
     | 'red'
     | 'black'
     | 'white'
-    | 'pink';
+    | 'pink'
+    | 'green';
 
 // 玩家可以移动的立体方块
 export type GemFrames =
@@ -36,7 +37,8 @@ export const GEM_COLORS: Record<GemColor, Color> = {
     red: new Color(245, 93, 100, 255),
     black: new Color(68, 68, 68, 255),
     white: new Color(255, 255, 255, 255),
-    pink: new Color(255, 102, 187, 255)
+    pink: new Color(255, 102, 187, 255),
+    green: new Color(46, 190, 72, 255)
 };
 
 @ccclass('GemCell')
@@ -116,6 +118,19 @@ export class GemCell extends Component {
         );
     }
 
+    public getDisplaySize(): number {
+        return this.displaySize;
+    }
+
+    public getGemFrame(color: GemColor): SpriteFrame | null {
+        return this.frames[color] ?? null;
+    }
+
+    public getTargetFrame(): SpriteFrame | null {
+        if (!this.targetColor) return null;
+        return this.targetFrames[this.targetColor] ?? null;
+    }
+
     // 已正确的方块自动锁定
     public canMove(): boolean {
         return !this.isEmpty() && !this.isCorrect();
@@ -149,8 +164,6 @@ export class GemCell extends Component {
                 background.spriteFrame = targetFrame;
                 background.color = Color.WHITE;
             } else {
-                // 旧关卡未配置目标图片时，使用纯色后备显示
-                background.spriteFrame = null;
                 background.color = GEM_COLORS[target];
             }
 

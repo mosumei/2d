@@ -74,12 +74,14 @@ export class BoardManager extends Component {
         if (char === 'K') return 'black';
         if (char === 'W') return 'white';
         if (char === 'P') return 'pink';
+        if (char === 'G') return 'green';
         throw new Error(`未知颜色 ${char}`);
     }
 
     private getGemFrames(): GemFrames {
         return {
-            yellow: this.yellowGem ?? undefined,
+            yellow: this.tileFrames.yellow ?? this.yellowGem ?? undefined,
+            green: this.tileFrames.green,
             blue: this.tileFrames.blue ?? this.blueGem ?? undefined,
             red: this.redGem ?? undefined,
             black: this.tileFrames.black ?? this.blackGem ?? undefined,
@@ -130,7 +132,9 @@ export class BoardManager extends Component {
         const frames = this.getGemFrames();
         const targetFrames: TargetFrames = {
             blue: this.blueTarget ?? this.targetFrames.blue,
-            black: this.blackTarget ?? this.targetFrames.black
+            black: this.blackTarget ?? this.targetFrames.black,
+            yellow: this.targetFrames.yellow,
+            green: this.targetFrames.green
         };
 
         for (let row = 0; row < rows; row++) {

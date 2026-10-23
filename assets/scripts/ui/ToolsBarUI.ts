@@ -23,9 +23,7 @@ export class ToolsBarUI extends Component {
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
         root.setContentSize(360, 110);
 
-        this.makeTool('MagicWandButton', -115, '魔法棒', 'ui/tools/tool_magic_wand');
-        this.makeTool('XRayButton', 0, '透视镜', 'ui/tools/tool_xray');
-        this.makeTool('MagnetButton', 115, '磁铁', 'ui/tools/tool_magnet');
+        this.makeTool('MagicWandButton', 0, '魔法棒', 'ui/tools/tool_magic_wand');
     }
 
     private makeTool(
@@ -115,5 +113,12 @@ export class ToolsBarUI extends Component {
 
     public setWandArmed(armed: boolean) {
         this.wandButton?.setScale(armed ? 1.12 : 1, armed ? 1.12 : 1, 1);
+    }
+
+    public getWandFrame(): SpriteFrame | null {
+        return this.wandButton
+            ?.getChildByName('Icon')
+            ?.getComponent(Sprite)
+            ?.spriteFrame ?? null;
     }
 }

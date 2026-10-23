@@ -222,7 +222,7 @@
       "a": 255
     },
     "_normalSprite": {
-      "__uuid__": "c295624f-a637-4332-839c-8b0f1914d6c9@f9941",
+      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_hoverSprite": {
@@ -330,13 +330,13 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 255,
-      "g": 255,
-      "b": 255,
+      "r": 196,
+      "g": 142,
+      "b": 64,
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "c295624f-a637-4332-839c-8b0f1914d6c9@f9941",
+      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,
@@ -530,13 +530,13 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 255,
-      "g": 255,
-      "b": 255,
-      "a": 243
+      "r": 232,
+      "g": 220,
+      "b": 198,
+      "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "7e10d1b8-1bce-47d0-9b1c-601b08661e17@f9941",
+      "__uuid__": "7d8f9b89-4fd1-4c9f-a3ab-38ec7cded7ca@f9941",
       "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,

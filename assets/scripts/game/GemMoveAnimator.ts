@@ -49,15 +49,32 @@ export class GemMoveAnimator extends Component {
             return;
         }
 
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            this.unschedule(watchdog);
+            onComplete();
+        };
+        const watchdog = () => {
+            for (const child of [...this.node.children]) {
+                if (child.name === 'GemFlyer' && child.isValid) {
+                    child.destroy();
+                }
+            }
+            finish();
+        };
+
         let completed = 0;
+        let started = 0;
 
         for (const move of moves) {
+            if (!move.from?.isValid || !move.to?.isValid) continue;
 
             const startPos =
                 parentUI.convertToNodeSpaceAR(
                     move.from.worldPosition
                 );
-
             const endPos =
                 parentUI.convertToNodeSpaceAR(
                     move.to.worldPosition
@@ -69,57 +86,35 @@ export class GemMoveAnimator extends Component {
 
             const ui = flyer.addComponent(UITransform);
             const sprite = flyer.addComponent(Sprite);
-
             sprite.sizeMode = Sprite.SizeMode.CUSTOM;
             sprite.spriteFrame = move.frame;
             sprite.color = Color.WHITE;
 
-            const startSize = move.startSize ?? 46;
-            const endSize = move.endSize ?? 46;
-
-            // 固定初始像素尺寸
+            const startSize = Math.max(1, move.startSize ?? 46);
+            const endSize = Math.max(1, move.endSize ?? 46);
             ui.setContentSize(startSize, startSize);
-
             flyer.setPosition(startPos);
 
-            const scale =
-                endSize / startSize;
-
+            const scale = endSize / startSize;
+            started += 1;
             tween(flyer)
-                .parallel(
-                    tween().to(
-                        this.duration,
-                        {
-                            position: endPos.clone()
-                        },
-                        {
-                            easing: 'sineInOut'
-                        }
-                    ),
-                    tween().to(
-                        this.duration,
-                        {
-                            scale: new Vec3(
-                                scale,
-                                scale,
-                                1
-                            )
-                        },
-                        {
-                            easing: 'sineInOut'
-                        }
-                    )
-                )
+                .to(this.duration, {
+                    position: endPos.clone(),
+                    scale: new Vec3(scale, scale, 1)
+                }, { easing: 'sineInOut' })
                 .call(() => {
-                    flyer.destroy();
-
-                    completed++;
-
-                    if (completed === moves.length) {
-                        onComplete();
-                    }
+                    if (flyer.isValid) flyer.destroy();
+                    completed += 1;
+                    if (completed >= started) finish();
                 })
                 .start();
         }
+
+        if (started === 0) {
+            finish();
+            return;
+        }
+
+        this.scheduleOnce(watchdog, this.duration + 0.25);
     }
 }

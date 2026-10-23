@@ -1,26 +1,31 @@
 {
   "id": 3,
-  "name": "小花",
+  "name": "四色小花",
   "gridType": "square",
   "rows": 7,
   "cols": 7,
   "trayCapacity": 8,
   "target": [
-    "...B...",
-    "..BKB..",
-    ".BKKKB.",
-    "BBKBKBB",
-    ".BKKKB.",
-    "..BKB..",
-    "...B..."
+    "...G...",
+    "..GBG..",
+    ".GBYBG.",
+    "KBYBYBK",
+    ".GBYBG.",
+    "..GBG..",
+    "...G..."
   ],
-  "initialSwaps": [
-    [0, 3, 2, 2],
-    [6, 3, 2, 4],
-    [3, 3, 4, 3]
+  "initial": [
+    "...G...",
+    "..BGB..",
+    ".BGYGB.",
+    "KGYBYGK",
+    ".BGYGB.",
+    "..BGB..",
+    "...G..."
   ],
+  "initialSwaps": [],
   "starThresholds": {
-    "five": 3,
-    "four": 6
+    "five": 5,
+    "four": 10
   }
 }

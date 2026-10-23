@@ -305,7 +305,7 @@ export class LevelManager extends Component {
             data.target.some(
                 row => typeof row !== 'string' ||
                     row.length !== data.cols ||
-                    !/^[YBRWKP.]+$/.test(row)
+                    !/^[YBRWKPG.]+$/.test(row)
             ) ||
             !Number.isInteger(data.trayCapacity) ||
             data.trayCapacity < 1 ||
@@ -365,7 +365,7 @@ export class LevelManager extends Component {
                 data.initial.every(
                     (row, r) =>
                         row.length === data.cols &&
-                        /^[YBRWKP.]+$/.test(row) &&
+                        /^[YBRWKPG.]+$/.test(row) &&
                         [...row].every(
                             (color, c) =>
                                 (color === '.') ===
