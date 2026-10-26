@@ -9,7 +9,9 @@ const { ccclass } = _decorator;
 export class ToolsBarUI extends Component {
     private built = false;
     private wandButton: Node | null = null;
+    private adBadges: Node[] = [];
     public onWandClick: (() => void) | null = null;
+    public onHintClick: (() => void) | null = null;
 
     onLoad() {
         this.build();
@@ -21,9 +23,11 @@ export class ToolsBarUI extends Component {
 
         this.node.layer = Layers.Enum.UI_2D;
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
-        root.setContentSize(360, 110);
+        root.setContentSize(480, 120);
 
-        this.makeTool('MagicWandButton', 0, '魔法棒', 'ui/tools/tool_magic_wand');
+        this.makeTool('MagicWandButton', -150, '魔法棒', 'ui/tools/tool_magic_wand');
+        this.makeTool('HintButton', 0, '放大镜', 'ui/tools/tool_magnifier');
+        this.makeTool('MagnetButton', 150, '磁铁', 'ui/tools/tool_magnet');
     }
 
     private makeTool(
@@ -63,8 +67,16 @@ export class ToolsBarUI extends Component {
 
         if (name === 'MagicWandButton') {
             this.wandButton = buttonNode;
+            this.adBadges.push(this.makeAdBadge(buttonNode));
             buttonNode.on(Button.EventType.CLICK, () => {
                 this.onWandClick?.();
+            }, this);
+        }
+
+        if (name === 'HintButton') {
+            this.adBadges.push(this.makeAdBadge(buttonNode));
+            buttonNode.on(Button.EventType.CLICK, () => {
+                this.onHintClick?.();
             }, this);
         }
 
@@ -111,8 +123,41 @@ export class ToolsBarUI extends Component {
         return label;
     }
 
+    private makeAdBadge(parent: Node): Node {
+        const node = new Node('WatchAdBadge');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = parent;
+        node.setPosition(0, 58, 0);
+        node.active = false;
+        const transform = node.addComponent(UITransform);
+        transform.setContentSize(96, 28);
+        Object.assign(transform, { hitTest: () => false });
+
+        const graphics = node.addComponent(Graphics);
+        graphics.fillColor = new Color(120, 78, 36, 230);
+        graphics.roundRect(-48, -14, 96, 28, 14);
+        graphics.fill();
+
+        const label = this.makeText('BadgeLabel', '查看广告', 14, new Color(255, 246, 226, 255));
+        label.node.parent = node;
+        label.node.getComponent(UITransform)?.setContentSize(88, 24);
+        const labelTransform = label.node.getComponent(UITransform);
+        if (labelTransform) Object.assign(labelTransform, { hitTest: () => false });
+        return node;
+    }
+
     public setWandArmed(armed: boolean) {
         this.wandButton?.setScale(armed ? 1.12 : 1, armed ? 1.12 : 1, 1);
+    }
+
+    /**
+     * 第 3 关起显示「查看广告」。前两关不显示。
+     * @param visible 是否显示标签
+     */
+    public setWatchAdBadge(visible: boolean) {
+        for (const badge of this.adBadges) {
+            badge.active = visible;
+        }
     }
 
     public getWandFrame(): SpriteFrame | null {

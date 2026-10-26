@@ -23,6 +23,7 @@ export interface GemMove {
     // 开始与结束尺寸
     startSize?: number;
     endSize?: number;
+    delay?: number;
 }
 
 @ccclass('GemMoveAnimator')
@@ -70,6 +71,9 @@ export class GemMoveAnimator extends Component {
 
         let completed = 0;
         let started = 0;
+        let maxDelay = 0;
+        const parent = this.node.parent;
+        if (parent) this.node.setSiblingIndex(parent.children.length - 1);
 
         for (const move of moves) {
             if (!move.from?.isValid || !move.to?.isValid) continue;
@@ -95,12 +99,15 @@ export class GemMoveAnimator extends Component {
 
             const startSize = Math.max(1, move.startSize ?? 46);
             const endSize = Math.max(1, move.endSize ?? 46);
+            const delay = Math.max(0, move.delay ?? 0);
+            if (delay > maxDelay) maxDelay = delay;
             ui.setContentSize(startSize, startSize);
             flyer.setPosition(startPos);
 
             const scale = endSize / startSize;
             started += 1;
             tween(flyer)
+                .delay(delay)
                 .to(this.duration, {
                     position: endPos.clone(),
                     scale: new Vec3(scale, scale, 1)
@@ -117,6 +124,6 @@ export class GemMoveAnimator extends Component {
             return;
         }
 
-        this.scheduleOnce(watchdog, this.duration + 0.25);
+        this.scheduleOnce(watchdog, this.duration + maxDelay + 0.25);
     }
 }

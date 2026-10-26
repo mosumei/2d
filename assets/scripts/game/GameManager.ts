@@ -23,6 +23,9 @@ import {
     readTutorialSteps,
     TutorialManager
 } from './TutorialManager';
+import { MagicWandAdGate } from './MagicWandAdGate';
+import { HintEffect } from './HintEffect';
+import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
 
 const { ccclass, property } = _decorator;
@@ -70,6 +73,7 @@ export class GameManager extends Component {
     private wandMode = false;
     private toolsBar: ToolsBarUI | null = null;
     private toolsNode: Node | null = null;
+    private hintEffect: HintEffect | null = null;
     private tutorial: TutorialManager | null = null;
     private tutorialRunning = false;
     private artifactReveal: Node | null = null;
@@ -330,7 +334,9 @@ onLoad() {
             bar.build();
             this.toolsBar = bar;
             bar.onWandClick = () => this.toggleWand();
+            bar.onHintClick = () => this.useHint();
         }
+        this.ensureHintEffect();
 
         this.ensureEffects();
         this.ensureArtifactReveal();
@@ -466,14 +472,193 @@ onLoad() {
 
     private toggleWand() {
         if (this.finished || this.isAnimating || this.tutorial?.blocksInput()) return;
-        this.setWandMode(!this.wandMode);
+        if (this.wandMode) {
+            this.setWandMode(false);
+            this.audioManager?.playClick();
+            return;
+        }
+
+        const level = this.levelManager?.getCurrentLevel() ?? 1;
+        if (level > 2) this.isAnimating = true;
+        void MagicWandAdGate.requestUse(level, () => {
+            this.isAnimating = false;
+            if (!this.isValid || this.finished) return;
+            this.setWandMode(true);
+            this.audioManager?.playClick();
+        }).then((result) => {
+            if (!this.isValid) return;
+            if (result !== 'completed') this.isAnimating = false;
+            if (result === 'unavailable') this.showTikTokAdTip();
+        });
+    }
+
+    private ensureHintEffect() {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+        let node = canvas.getChildByName('HintEffect');
+        if (!node) {
+            node = new Node('HintEffect');
+            node.layer = Layers.Enum.UI_2D;
+            node.parent = canvas;
+        }
+        this.hintEffect = node.getComponent(HintEffect) ?? node.addComponent(HintEffect);
+    }
+
+    /**
+     * 先确认有合法提示，再决定要不要看广告。没有提示时不播广告。
+     */
+    private useHint() {
+        if (this.finished || this.isAnimating || this.tutorial?.blocksInput()) return;
+        if (!this.findBestHint()) {
+            this.showNoHintTip();
+            return;
+        }
+
+        const level = this.levelManager?.getCurrentLevel() ?? 1;
+        if (level <= 2) {
+            this.presentHint();
+            return;
+        }
+
+        this.isAnimating = true;
+        void TikTokAdsManager.showRewardedAd().then((result) => {
+            if (!this.isValid) return;
+            this.isAnimating = false;
+            if (result === 'unavailable') this.showTikTokAdTip();
+            if (result !== 'completed' || this.finished) return;
+            this.presentHint();
+        });
+    }
+
+    private presentHint() {
+        const hint = this.findBestHint();
+        if (!hint) return;
+        this.hintEffect?.showHint(hint.source, hint.target);
         this.audioManager?.playClick();
+    }
+
+    /**
+     * 优先提示能立刻归位的一步：先放进同色空位，再对调占错的两组，最后才用托盘。
+     */
+    private findBestHint(): { source: Node; target: Node } | null {
+        const board = this.boardManager;
+        if (!board) return null;
+
+        const cells = board.getCells();
+        const empties = cells.filter(cell =>
+            cell.currentColor === null && cell.targetColor !== null
+        );
+
+        for (const source of cells) {
+            if (!source.canMove() || !source.currentColor) continue;
+            const target = empties.find(cell => cell.targetColor === source.currentColor);
+            if (!target) continue;
+            return { source: source.node, target: target.node };
+        }
+
+        for (const source of cells) {
+            if (!source.canMove() || !source.currentColor || !source.targetColor) continue;
+            const dest = cells.find(cell =>
+                cell !== source &&
+                cell.canMove() &&
+                cell.currentColor === source.targetColor &&
+                cell.targetColor === source.currentColor
+            );
+            if (!dest) continue;
+            return { source: source.node, target: dest.node };
+        }
+
+        const tray = this.trayManager;
+        if (!tray) return null;
+
+        for (let slot = 0; ; slot++) {
+            const slotNode = tray.getSlotNode(slot);
+            if (!slotNode) break;
+            const color = tray.getGemAt(slot);
+            if (!color) continue;
+            const target = empties.find(cell => cell.targetColor === color);
+            if (!target) continue;
+            return { source: slotNode, target: target.node };
+        }
+
+        const emptySlot = tray.getFirstEmptySlot();
+        const slotNode = emptySlot >= 0 ? tray.getSlotNode(emptySlot) : null;
+        const source = cells.find(cell => cell.canMove());
+        if (source && slotNode) {
+            return { source: source.node, target: slotNode };
+        }
+
+        return null;
+    }
+
+    private showNoHintTip() {
+        this.showFloatingTip('HintTip', '没有可以提示的步骤');
     }
 
     private setWandMode(armed: boolean) {
         this.wandMode = armed;
         if (armed) this.clearSelection();
         this.toolsBar?.setWandArmed(armed);
+    }
+
+    /**
+     * 编辑器里没有 TikTok 广告接口时，说明要去 ttmg 里看。
+     */
+    private showTikTokAdTip() {
+        this.showFloatingTip(
+            'TikTokAdTip',
+            '广告只有在 ttmg 开发者工具里才能看到\n目前只接了 TikTok'
+        );
+    }
+
+    private showFloatingTip(name: string, text: string) {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+        let tip = canvas.getChildByName(name);
+        if (!tip) {
+            tip = new Node(name);
+            tip.layer = Layers.Enum.UI_2D;
+            tip.parent = canvas;
+            tip.setPosition(0, 360, 0);
+            const transform = tip.addComponent(UITransform);
+            transform.setContentSize(640, 96);
+            Object.assign(transform, { hitTest: () => false });
+            const graphics = tip.addComponent(Graphics);
+            graphics.fillColor = new Color(255, 248, 235, 245);
+            graphics.roundRect(-300, -44, 600, 88, 18);
+            graphics.fill();
+            graphics.strokeColor = new Color(196, 142, 64, 255);
+            graphics.lineWidth = 3;
+            graphics.roundRect(-300, -44, 600, 88, 18);
+            graphics.stroke();
+            const labelNode = new Node('TipLabel');
+            labelNode.layer = Layers.Enum.UI_2D;
+            labelNode.parent = tip;
+            labelNode.addComponent(UITransform).setContentSize(560, 72);
+            const label = labelNode.addComponent(Label);
+            label.useSystemFont = true;
+            label.fontFamily = 'PingFang SC';
+            label.fontSize = 24;
+            label.lineHeight = 32;
+            label.isBold = true;
+            label.color = new Color(92, 58, 32, 255);
+            label.horizontalAlign = Label.HorizontalAlign.CENTER;
+            label.verticalAlign = Label.VerticalAlign.CENTER;
+            label.overflow = Label.Overflow.SHRINK;
+        }
+        const label = tip.getChildByName('TipLabel')?.getComponent(Label);
+        if (label) label.string = text;
+        tip.active = true;
+        tip.setSiblingIndex(canvas.children.length - 1);
+        this.unschedule(this.hideTikTokAdTip);
+        this.scheduleOnce(this.hideTikTokAdTip, 2.8);
+    }
+
+    private hideTikTokAdTip() {
+        for (const name of ['TikTokAdTip', 'HintTip']) {
+            const tip = this.node.parent?.getChildByName(name);
+            if (tip) tip.active = false;
+        }
     }
 
     private useWand(cell: GemCell) {
@@ -483,6 +668,7 @@ onLoad() {
         const region = this.collectWandRegion(cell);
         if (region.length === 0) return;
 
+        this.hintEffect?.clearHint();
         this.setWandMode(false);
         this.clearSelection();
         this.effects?.showWandRegion(
@@ -816,6 +1002,42 @@ onLoad() {
         return group;
     }
 
+    // 从点中的空格出发，只取连在一起的同色空格。
+    private getConnectedEmptyCells(origin: GemCell): GemCell[] {
+        const board = this.boardManager;
+        const color = origin.targetColor;
+        if (!board || !color || origin.currentColor !== null) return [];
+
+        const group: GemCell[] = [];
+        const seen = new Set<GemCell>();
+        const pending: GemCell[] = [origin];
+
+        while (pending.length > 0) {
+            const cell = pending.pop();
+            if (!cell || seen.has(cell)) continue;
+            seen.add(cell);
+            if (cell.currentColor !== null || cell.targetColor !== color) continue;
+
+            group.push(cell);
+            const neighbors = [
+                board.getCell(cell.row - 1, cell.col),
+                board.getCell(cell.row + 1, cell.col),
+                board.getCell(cell.row, cell.col - 1),
+                board.getCell(cell.row, cell.col + 1)
+            ];
+            for (const neighbor of neighbors) {
+                if (neighbor) pending.push(neighbor);
+            }
+        }
+
+        group.sort((a, b) => {
+            if (a === origin) return -1;
+            if (b === origin) return 1;
+            return a.row - b.row || a.col - b.col;
+        });
+        return group;
+    }
+
     // 选中的同色棋子放进空槽。空槽不够时，先拿走点中的那颗，其余留在原位。
     private takeSameColorToTray(origin: GemCell): boolean {
         const tray = this.trayManager;
@@ -841,6 +1063,9 @@ onLoad() {
 
         if (batch.length === 0) return false;
 
+        this.hintEffect?.clearHint();
+        this.audioManager?.playTray();
+
         if (!this.moveAnimator) {
             for (const item of batch) {
                 if (tray.setGemAt(item.slot, item.color)) {
@@ -848,7 +1073,6 @@ onLoad() {
                 }
             }
             this.clearSelection();
-            this.audioManager?.playMove();
             this.countMove();
             this.noteTutorialProgress();
             this.checkCompleted();
@@ -859,10 +1083,10 @@ onLoad() {
         this.clearSelection();
 
         const moves: GemMove[] = [];
-        for (const item of batch) {
+        batch.forEach((item, index) => {
             const slotNode = tray.getSlotNode(item.slot);
             const frame = item.cell.gemSprite?.spriteFrame;
-            if (!slotNode || !frame) continue;
+            if (!slotNode || !frame) return;
             if (item.cell.gemSprite) {
                 item.cell.gemSprite.node.active = false;
             }
@@ -870,10 +1094,11 @@ onLoad() {
                 frame,
                 from: item.cell.node,
                 to: slotNode,
-                startSize: 46,
-                endSize: 44
+                startSize: Math.round(item.cell.getDisplaySize() * 0.72),
+                endSize: 44,
+                delay: index * 0.04
             });
-        }
+        });
 
         this.moveAnimator.play(moves, () => {
             for (const item of batch) {
@@ -882,7 +1107,6 @@ onLoad() {
             }
 
             this.isAnimating = false;
-            this.audioManager?.playMove();
             this.countMove();
             this.noteTutorialProgress();
             this.checkCompleted();
@@ -984,7 +1208,7 @@ onLoad() {
     }
 
 
-    // 把拿起的同色棋子放进空的同色格子。格子里已有棋子时不交换。
+    // 把拿起的同色棋子放进点中这片连在一起的空格。
     private exchangeWithTargetGroup(clicked: GemCell) {
         const selection = this.selected;
         const gemColor = selection?.type === 'board'
@@ -1007,15 +1231,7 @@ onLoad() {
             }
         }
 
-        const destinations = board.getCells().filter(cell =>
-            cell.targetColor === gemColor &&
-            cell.currentColor === null
-        );
-        destinations.sort((a, b) => {
-            if (a === clicked) return -1;
-            if (b === clicked) return 1;
-            return a.row - b.row || a.col - b.col;
-        });
+        const destinations = this.getConnectedEmptyCells(clicked);
 
         const count = Math.min(sources.length, destinations.length);
         if (count === 0) return;
@@ -1104,7 +1320,7 @@ onLoad() {
         return true;
     }
 
-    // 托盘里已弹起的颜色，放进空的同色格子。格子里已有棋子时不交换。
+    // 托盘里已弹起的颜色，放进点中这片连在一起的空格。
     private placeTrayColor(index: number, clicked: GemCell) {
         const tray = this.trayManager;
         const board = this.boardManager;
@@ -1123,15 +1339,7 @@ onLoad() {
             return a - b;
         });
 
-        const destinations = board.getCells().filter(cell =>
-            cell.targetColor === color &&
-            cell.currentColor === null
-        );
-        destinations.sort((a, b) => {
-            if (a === clicked) return -1;
-            if (b === clicked) return 1;
-            return a.row - b.row || a.col - b.col;
-        });
+        const destinations = this.getConnectedEmptyCells(clicked);
 
         const count = Math.min(slotIndices.length, destinations.length);
         if (count === 0) return;
@@ -1194,6 +1402,7 @@ onLoad() {
             this.vibrateAfterMove(matched);
         };
 
+        this.hintEffect?.clearHint();
         this.clearSelection();
         if (!this.moveAnimator || moves.length === 0) {
             finish();
@@ -1276,6 +1485,7 @@ onLoad() {
         const returnToComplete = this.finished;
 
         this.clearSelection();
+        this.hintEffect?.clearHint();
         this.finished = true;
         this.completePanel?.hide();
         this.collectionPanel?.hide();
@@ -1299,8 +1509,7 @@ onLoad() {
 
             this.trayManager!.resetTray(data.trayCapacity);
             const steps = readTutorialSteps(data.tutorialSteps);
-            const blocking = steps.some(step => step.blocking !== false);
-            if (this.toolsNode) this.toolsNode.active = !blocking;
+            if (this.toolsNode) this.toolsNode.active = true;
             this.tutorial?.stop();
             this.tutorial = null;
             this.tutorialRunning = false;
@@ -1334,6 +1543,7 @@ onLoad() {
             if (this.levelLabel) {
                 this.levelLabel.string = `LEVEL ${data.id}`;
             }
+            this.toolsBar?.setWatchAdBadge(data.id > 2);
 
             console.log(
                 `[GameManager] LEVEL ${data.id} 开始`
