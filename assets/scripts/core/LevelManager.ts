@@ -27,11 +27,12 @@ export interface LevelData {
     initialColorMap?: number[][];
     initialSwaps: number[][];
     starThresholds?: StarThresholds;
+    tutorialSteps?: unknown;
 }
 
 @ccclass('LevelManager')
 export class LevelManager extends Component {
-    private readonly SAVE_KEY = 'jewel_crush_progress_v1';
+    private readonly SAVE_KEY = 'jewel_crush_progress_v2';
 
     private highestUnlockedLevel = 1;
     private lastPlayedLevel = 1;
@@ -107,6 +108,36 @@ export class LevelManager extends Component {
                 callback(data);
             }
         );
+    }
+
+    /**
+     * 加载教学关。不改当前关卡号和存档。
+     * @param fileName resources 下的路径，不含后缀
+     * @param callback 加载结果
+     */
+    public loadCustom(
+        fileName: string,
+        callback: (data: LevelData | null) => void
+    ) {
+        if (this.loading) return;
+
+        this.loading = true;
+        resources.load(fileName, JsonAsset, (error, asset) => {
+            this.loading = false;
+            if (error || !asset) {
+                console.error('[LevelManager] 教学关加载失败', error);
+                callback(null);
+                return;
+            }
+
+            const data = asset.json as LevelData;
+            if (!this.validateLevel(data)) {
+                callback(null);
+                return;
+            }
+
+            callback(data);
+        });
     }
 
     // 读取本地存档

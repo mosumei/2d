@@ -1,31 +1,29 @@
 {
   "id": 3,
-  "name": "四色小花",
+  "name": "彩心",
   "gridType": "square",
-  "rows": 7,
+  "rows": 6,
   "cols": 7,
   "trayCapacity": 8,
   "target": [
-    "...G...",
-    "..GBG..",
-    ".GBYBG.",
-    "KBYBYBK",
-    ".GBYBG.",
-    "..GBG..",
-    "...G..."
+    ".BB.BB.",
+    "BYYYYYB",
+    "BYGGGYB",
+    ".BYYYB.",
+    "..BYB..",
+    "...B..."
   ],
   "initial": [
-    "...G...",
+    ".YY.YY.",
+    "BBBGBBB",
+    "BBYYYBB",
+    ".YYGYB.",
     "..BGB..",
-    ".BGYGB.",
-    "KGYBYGK",
-    ".BGYGB.",
-    "..BGB..",
-    "...G..."
+    "...Y..."
   ],
   "initialSwaps": [],
   "starThresholds": {
-    "five": 5,
-    "four": 10
+    "five": 8,
+    "four": 14
   }
 }

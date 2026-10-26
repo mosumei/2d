@@ -1,0 +1,31 @@
+{
+  "id": 4,
+  "name": "金蓝星",
+  "gridType": "square",
+  "rows": 7,
+  "cols": 7,
+  "trayCapacity": 8,
+  "target": [
+    "...Y...",
+    "...B...",
+    "YYYYYYY",
+    ".YBBBY.",
+    "..YYY..",
+    ".YY.YY.",
+    "Y.....Y"
+  ],
+  "initial": [
+    "...B...",
+    "...Y...",
+    "YYYYYYY",
+    ".YYYYY.",
+    "..YYY..",
+    ".BY.YY.",
+    "B.....B"
+  ],
+  "initialSwaps": [],
+  "starThresholds": {
+    "five": 8,
+    "four": 16
+  }
+}

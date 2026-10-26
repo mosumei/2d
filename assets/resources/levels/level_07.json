@@ -1,0 +1,29 @@
+{
+  "id": 7,
+  "name": "金蓝十字",
+  "gridType": "square",
+  "rows": 6,
+  "cols": 6,
+  "trayCapacity": 8,
+  "target": [
+    "..YY..",
+    ".YBBY.",
+    "YYBBKK",
+    "BBKKBB",
+    ".KKBY.",
+    "..YY.."
+  ],
+  "initial": [
+    "..YB..",
+    ".YKKB.",
+    "YYBBKK",
+    "BBYYBB",
+    ".KKBY.",
+    "..YY.."
+  ],
+  "initialSwaps": [],
+  "starThresholds": {
+    "five": 4,
+    "four": 8
+  }
+}

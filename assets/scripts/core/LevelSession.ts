@@ -13,7 +13,7 @@ interface ProgressData {
 export class LevelSession {
 
     private static readonly SAVE_KEY =
-        'jewel_crush_progress_v1';
+        'jewel_crush_progress_v2';
 
     private static selectedLevel: number | null = null;
 

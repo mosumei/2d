@@ -1,29 +1,29 @@
 {
   "id": 2,
-  "name": "金蓝十字",
+  "name": "黄蓝棋盘",
   "gridType": "square",
   "rows": 6,
   "cols": 6,
   "trayCapacity": 8,
   "target": [
-    "..YY..",
-    ".YBBY.",
-    "YYBBKK",
-    "BBKKBB",
-    ".KKBY.",
-    "..YY.."
+    "BBBYYY",
+    "BBBYYY",
+    "BBBYYY",
+    "BBBYYY",
+    "BBBYYY",
+    "BBBYYY"
   ],
   "initial": [
-    "..YB..",
-    ".YKKB.",
-    "YYBBKK",
-    "BBYYBB",
-    ".KKBY.",
-    "..YY.."
+    "YYYBBB",
+    "YYYBBB",
+    "YYYBBB",
+    "YYYBBB",
+    "YYYBBB",
+    "YYYBBB"
   ],
   "initialSwaps": [],
   "starThresholds": {
-    "five": 4,
-    "four": 8
+    "five": 10,
+    "four": 16
   }
 }

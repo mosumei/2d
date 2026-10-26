@@ -19,6 +19,10 @@ import { ToolsBarUI } from '../ui/ToolsBarUI';
 import { SettingsButton } from '../ui/SettingsButton';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { VibrationManager } from '../core/VibrationManager';
+import {
+    readTutorialSteps,
+    TutorialManager
+} from './TutorialManager';
 import { JewelEffects } from './JewelEffects';
 
 const { ccclass, property } = _decorator;
@@ -65,6 +69,9 @@ export class GameManager extends Component {
     private moveCount = 0;
     private wandMode = false;
     private toolsBar: ToolsBarUI | null = null;
+    private toolsNode: Node | null = null;
+    private tutorial: TutorialManager | null = null;
+    private tutorialRunning = false;
     private artifactReveal: Node | null = null;
     private finishToken = 0;
     private artifactToken = 0;
@@ -316,6 +323,7 @@ onLoad() {
 
         const tools = this.node.parent?.getChildByName('ToolsContainer');
         if (tools) {
+            this.toolsNode = tools;
             tools.active = true;
             tools.setPosition(0, -522, 0);
             const bar = tools.getComponent(ToolsBarUI) ?? tools.addComponent(ToolsBarUI);
@@ -391,8 +399,8 @@ onLoad() {
         if (!selection || selection.type !== 'tray' || !tray) return;
 
         const color = tray.getGemAt(selection.index);
-        if (color && cell.targetColor === color) {
-            this.placeTrayColor(selection.index);
+        if (color && cell.targetColor === color && cell.currentColor === null) {
+            this.placeTrayColor(selection.index, cell);
             return;
         }
 
@@ -407,6 +415,8 @@ onLoad() {
         if (this.isAnimating) return;
         if (this.finished) return;
 
+        if (this.tutorialRunning && !this.tutorial?.allowBoard(cell)) return;
+
         if (this.wandMode) {
             this.useWand(cell);
             return;
@@ -420,9 +430,10 @@ onLoad() {
             return;
         }
 
-        // 第一次只拿起整盘同色，这时还不移动
+        // 第一次只拿起和它连在一起的同色，这时还不移动
         if (!selection || selection.type !== 'board') {
             this.selectBoard(cell);
+            this.noteTutorialProgress();
             return;
         }
 
@@ -432,11 +443,29 @@ onLoad() {
             return;
         }
 
-        this.exchangeWithTargetGroup(cell);
+        // 点到空的同色格子，放进去。点到站在自己颜色格上的另一组，就对调。
+        const heldColor = selection.cell.currentColor;
+        if (heldColor && cell.currentColor === null && cell.targetColor === heldColor) {
+            this.exchangeWithTargetGroup(cell);
+            return;
+        }
+        if (
+            heldColor &&
+            cell.canMove() &&
+            cell.currentColor &&
+            cell.currentColor !== heldColor &&
+            this.exchangeIntoOwnSlots(cell, heldColor)
+        ) {
+            return;
+        }
+        if (cell.canMove() && cell.currentColor) {
+            this.selectBoard(cell);
+            this.noteTutorialProgress();
+        }
     }
 
     private toggleWand() {
-        if (this.finished || this.isAnimating) return;
+        if (this.finished || this.isAnimating || this.tutorial?.blocksInput()) return;
         this.setWandMode(!this.wandMode);
         this.audioManager?.playClick();
     }
@@ -627,6 +656,7 @@ onLoad() {
             this.playPlacementSound(matched, false);
             if (restore.changed.length > 0) {
                 this.countMove();
+                this.noteTutorialProgress();
                 this.vibrateAfterMove(matched, true);
             }
         };
@@ -750,14 +780,34 @@ onLoad() {
         }
     }
 
-    // 整盘同色、且还没归位的棋子。点中的那颗排在最前。
+    // 和点中的那颗上下左右相连、还没归位的同色棋子。点中的那颗排在最前。
     private getSameColorMovableCells(origin: GemCell): GemCell[] {
         const color = origin.currentColor;
-        if (!color) return [];
+        const board = this.boardManager;
+        if (!color || !board || !origin.canMove()) return [];
 
-        const group = (this.boardManager?.getCells() ?? []).filter(cell =>
-            cell.canMove() && cell.currentColor === color
-        );
+        const group: GemCell[] = [];
+        const seen = new Set<GemCell>();
+        const pending: GemCell[] = [origin];
+
+        while (pending.length > 0) {
+            const cell = pending.pop();
+            if (!cell || seen.has(cell)) continue;
+            seen.add(cell);
+            if (!cell.canMove() || cell.currentColor !== color) continue;
+
+            group.push(cell);
+            const neighbors = [
+                board.getCell(cell.row - 1, cell.col),
+                board.getCell(cell.row + 1, cell.col),
+                board.getCell(cell.row, cell.col - 1),
+                board.getCell(cell.row, cell.col + 1)
+            ];
+            for (const neighbor of neighbors) {
+                if (neighbor) pending.push(neighbor);
+            }
+        }
+
         group.sort((a, b) => {
             if (a === origin) return -1;
             if (b === origin) return 1;
@@ -800,6 +850,7 @@ onLoad() {
             this.clearSelection();
             this.audioManager?.playMove();
             this.countMove();
+            this.noteTutorialProgress();
             this.checkCompleted();
             return true;
         }
@@ -833,6 +884,7 @@ onLoad() {
             this.isAnimating = false;
             this.audioManager?.playMove();
             this.countMove();
+            this.noteTutorialProgress();
             this.checkCompleted();
         });
 
@@ -869,6 +921,7 @@ onLoad() {
             this.notifyGemSettled([source, target]);
             this.clearSelection();
             this.countMove();
+            this.noteTutorialProgress();
             this.vibrateAfterMove(source.isCorrect() || target.isCorrect());
             return;
         }
@@ -923,6 +976,7 @@ onLoad() {
 
             this.isAnimating = false;
             this.countMove();
+            this.noteTutorialProgress();
             this.vibrateAfterMove(source.isCorrect() || target.isCorrect());
 
             console.log('宝石移动动画完成');
@@ -930,20 +984,19 @@ onLoad() {
     }
 
 
-    // 把拿起的同色棋子填进点中的那一组目标格。能填几个填几个。
+    // 把拿起的同色棋子放进空的同色格子。格子里已有棋子时不交换。
     private exchangeWithTargetGroup(clicked: GemCell) {
         const selection = this.selected;
         const gemColor = selection?.type === 'board'
             ? selection.cell.currentColor
             : null;
-        const targetColor = clicked.targetColor;
         const board = this.boardManager;
-        if (!gemColor || !targetColor || !board) return;
+        if (!gemColor || !board || clicked.currentColor !== null) return;
 
         const sources = this.selectedGroup.filter(cell =>
             cell.canMove() &&
             cell.currentColor === gemColor &&
-            cell.targetColor !== targetColor
+            cell.targetColor !== gemColor
         );
         const origin = selection?.type === 'board' ? selection.cell : null;
         if (origin) {
@@ -955,16 +1008,13 @@ onLoad() {
         }
 
         const destinations = board.getCells().filter(cell =>
-            cell.targetColor === targetColor &&
-            !cell.isCorrect() &&
-            cell.currentColor !== gemColor
+            cell.targetColor === gemColor &&
+            cell.currentColor === null
         );
         destinations.sort((a, b) => {
             if (a === clicked) return -1;
             if (b === clicked) return 1;
-            const aEmpty = a.currentColor === null ? 0 : 1;
-            const bEmpty = b.currentColor === null ? 0 : 1;
-            return aEmpty - bEmpty;
+            return a.row - b.row || a.col - b.col;
         });
 
         const count = Math.min(sources.length, destinations.length);
@@ -977,9 +1027,7 @@ onLoad() {
         const moves: GemMove[] = [];
         for (const pair of pairs) {
             const frameA = pair.source.gemSprite?.spriteFrame;
-            const destColor = pair.dest.currentColor;
-            const frameB = pair.dest.gemSprite?.spriteFrame;
-            if (!frameA || (destColor && !frameB)) return;
+            if (!frameA) return;
             moves.push({
                 frame: frameA,
                 from: pair.source.node,
@@ -987,15 +1035,59 @@ onLoad() {
                 startSize: 46,
                 endSize: 46
             });
-            if (destColor && frameB) {
-                moves.push({
-                    frame: frameB,
-                    from: pair.dest.node,
-                    to: pair.source.node,
-                    startSize: 46,
-                    endSize: 46
-                });
+        }
+
+        this.hideMovedGems(pairs.map(pair => pair.source));
+        const changed = pairs.flatMap(pair => [pair.source, pair.dest]);
+        this.runMoves(moves, () => {
+            for (const pair of pairs) {
+                const sourceColor = pair.source.currentColor;
+                pair.source.setCurrentColor(null);
+                pair.dest.setCurrentColor(sourceColor);
             }
+        }, changed);
+    }
+
+    // 两组棋子正好占着对方的颜色格时，对调到各自的格子。
+    private exchangeIntoOwnSlots(clicked: GemCell, heldColor: GemColor): boolean {
+        const otherColor = clicked.currentColor;
+        if (!otherColor || clicked.targetColor !== heldColor) return false;
+
+        const sources = this.selectedGroup.filter(cell =>
+            cell.canMove() &&
+            cell.currentColor === heldColor &&
+            cell.targetColor === otherColor
+        );
+        const destinations = this.getSameColorMovableCells(clicked).filter(cell =>
+            cell.currentColor === otherColor &&
+            cell.targetColor === heldColor
+        );
+        const count = Math.min(sources.length, destinations.length);
+        if (count === 0) return false;
+
+        const pairs = sources.slice(0, count).map((source, index) => ({
+            source,
+            dest: destinations[index]
+        }));
+        const moves: GemMove[] = [];
+        for (const pair of pairs) {
+            const frameA = pair.source.gemSprite?.spriteFrame;
+            const frameB = pair.dest.gemSprite?.spriteFrame;
+            if (!frameA || !frameB) return false;
+            moves.push({
+                frame: frameA,
+                from: pair.source.node,
+                to: pair.dest.node,
+                startSize: 46,
+                endSize: 46
+            });
+            moves.push({
+                frame: frameB,
+                from: pair.dest.node,
+                to: pair.source.node,
+                startSize: 46,
+                endSize: 46
+            });
         }
 
         this.hideMovedGems(pairs.map(pair => pair.source));
@@ -1009,10 +1101,11 @@ onLoad() {
                 pair.dest.setCurrentColor(sourceColor);
             }
         }, changed);
+        return true;
     }
 
-    // 托盘里已弹起的颜色，放回对应目标格。能放几颗放几颗。
-    private placeTrayColor(index: number) {
+    // 托盘里已弹起的颜色，放进空的同色格子。格子里已有棋子时不交换。
+    private placeTrayColor(index: number, clicked: GemCell) {
         const tray = this.trayManager;
         const board = this.boardManager;
         if (!tray || !board) return;
@@ -1032,13 +1125,12 @@ onLoad() {
 
         const destinations = board.getCells().filter(cell =>
             cell.targetColor === color &&
-            !cell.isCorrect() &&
-            cell.currentColor !== color
+            cell.currentColor === null
         );
         destinations.sort((a, b) => {
-            const aEmpty = a.currentColor === null ? 0 : 1;
-            const bEmpty = b.currentColor === null ? 0 : 1;
-            return aEmpty - bEmpty || a.row - b.row || a.col - b.col;
+            if (a === clicked) return -1;
+            if (b === clicked) return 1;
+            return a.row - b.row || a.col - b.col;
         });
 
         const count = Math.min(slotIndices.length, destinations.length);
@@ -1053,9 +1145,7 @@ onLoad() {
             const slotNode = tray.getSlotNode(pair.slot);
             const sourceGem = slotNode?.getChildByName('GemImage');
             const sourceFrame = sourceGem?.getComponent(Sprite)?.spriteFrame;
-            const destColor = pair.dest.currentColor;
-            const destFrame = pair.dest.gemSprite?.spriteFrame;
-            if (!slotNode || !sourceFrame || (destColor && !destFrame)) return;
+            if (!slotNode || !sourceFrame) return;
             moves.push({
                 frame: sourceFrame,
                 from: slotNode,
@@ -1063,15 +1153,6 @@ onLoad() {
                 startSize: 44,
                 endSize: 46
             });
-            if (destColor && destFrame) {
-                moves.push({
-                    frame: destFrame,
-                    from: pair.dest.node,
-                    to: slotNode,
-                    startSize: 46,
-                    endSize: 44
-                });
-            }
         }
 
         if (this.moveAnimator) {
@@ -1080,11 +1161,9 @@ onLoad() {
                 if (sourceGem) sourceGem.active = false;
             }
         }
-        this.hideMovedGems(pairs.map(pair => pair.dest));
         this.runMoves(moves, () => {
             for (const pair of pairs) {
-                const destColor = pair.dest.currentColor;
-                tray.setGemAt(pair.slot, destColor);
+                tray.setGemAt(pair.slot, null);
                 pair.dest.setCurrentColor(color);
             }
         }, pairs.map(pair => pair.dest));
@@ -1111,6 +1190,7 @@ onLoad() {
             const matched = changed.some(cell => cell.isCorrect());
             this.playPlacementSound(matched, false);
             this.countMove();
+            this.noteTutorialProgress();
             this.vibrateAfterMove(matched);
         };
 
@@ -1133,6 +1213,8 @@ onLoad() {
             this.isAnimating ||
             !this.trayManager
         ) return;
+
+        if (this.tutorialRunning && !this.tutorial?.allowTray(index)) return;
 
         if (this.wandMode) {
             this.setWandMode(false);
@@ -1158,6 +1240,7 @@ onLoad() {
         }
 
         this.selectTray(index);
+        this.noteTutorialProgress();
     }
 
 
@@ -1215,10 +1298,29 @@ onLoad() {
             }
 
             this.trayManager!.resetTray(data.trayCapacity);
+            const steps = readTutorialSteps(data.tutorialSteps);
+            const blocking = steps.some(step => step.blocking !== false);
+            if (this.toolsNode) this.toolsNode.active = !blocking;
+            this.tutorial?.stop();
+            this.tutorial = null;
+            this.tutorialRunning = false;
             this.boardManager!.loadLevel(
                 data.target,
                 data.initialSwaps,
-                data.initial
+                data.initial,
+                () => {
+                    if (!this.isValid || steps.length === 0) return;
+                    const canvas = this.node.parent;
+                    if (!canvas || !this.boardManager || !this.trayManager) return;
+                    this.tutorial = new TutorialManager();
+                    this.tutorialRunning = true;
+                    this.tutorial.start(
+                        steps,
+                        canvas,
+                        this.boardManager,
+                        this.trayManager
+                    );
+                }
             );
             this.refreshArtifactReveal(data.id);
 
@@ -1237,6 +1339,44 @@ onLoad() {
                 `[GameManager] LEVEL ${data.id} 开始`
             );
         });
+    }
+
+    /**
+     * 引导步骤走完后收起提示，棋盘继续按普通关卡结算。
+     */
+    private endTutorialGuide() {
+        this.tutorialRunning = false;
+        this.tutorial?.stop();
+        this.tutorial = null;
+        if (this.toolsNode) this.toolsNode.active = true;
+    }
+
+    /**
+     * 当前教学步骤已经完成时，切到下一步。
+     */
+    private noteTutorialProgress() {
+        if (!this.tutorialRunning || !this.tutorial || !this.boardManager || !this.trayManager) {
+            return;
+        }
+        const selected = this.selected?.type === 'board'
+            ? {
+                type: 'board' as const,
+                row: this.selected.cell.row,
+                col: this.selected.cell.col,
+                slot: -1
+            }
+            : this.selected?.type === 'tray'
+                ? {
+                    type: 'tray' as const,
+                    row: -1,
+                    col: -1,
+                    slot: this.selected.index
+                }
+                : null;
+        this.tutorial.advanceIfDone(this.boardManager, this.trayManager, selected);
+        if (this.tutorial.isComplete()) {
+            this.endTutorialGuide();
+        }
     }
 
     private nextLevel() {

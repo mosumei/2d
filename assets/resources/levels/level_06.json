@@ -1,0 +1,35 @@
+{
+  "id": 6,
+  "name": "蓝灰之心",
+  "gridType": "square",
+  "rows": 11,
+  "cols": 11,
+  "trayCapacity": 8,
+  "target": [
+    "..KK...KK..",
+    ".KBBK.KBBK.",
+    "KB.BBKBBBBK",
+    "K.BBBBBBBBK",
+    "KB.BBBBBBBK",
+    "KBBBBBBBBBK",
+    ".KBBBBBBBK.",
+    "..KBBBBBK..",
+    "...KBBBK...",
+    "....KBK....",
+    ".....K....."
+  ],
+  "initialSwaps": [
+    [0, 2, 1, 2],
+    [0, 8, 1, 8],
+    [1, 4, 2, 4],
+    [2, 5, 3, 5],
+    [4, 0, 4, 3],
+    [5, 10, 5, 8],
+    [7, 2, 7, 4],
+    [9, 6, 8, 5]
+  ],
+  "starThresholds": {
+    "five": 8,
+    "four": 14
+  }
+}

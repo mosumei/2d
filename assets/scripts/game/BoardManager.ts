@@ -93,7 +93,8 @@ export class BoardManager extends Component {
     public loadLevel(
         target: string[],
         initialSwaps: number[][] = [],
-        initial?: string[]
+        initial?: string[],
+        onReady?: () => void
     ) {
         this.pattern = [...target];
         this.initialPattern = initial ? [...initial] : null;
@@ -103,6 +104,7 @@ export class BoardManager extends Component {
             this.tileFrames = set.tiles;
             this.targetFrames = set.targets;
             this.generateBoard(swaps);
+            onReady?.();
         });
     }
 

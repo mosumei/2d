@@ -1,75 +1,73 @@
 {
   "id": 1,
-  "name": "蓝灰之心",
+  "name": "黄蓝入门",
   "gridType": "square",
-  "rows": 11,
-  "cols": 11,
-  "trayCapacity": 8,
+  "rows": 6,
+  "cols": 4,
+  "trayCapacity": 12,
   "target": [
-    "..KK...KK..",
-    ".KBBK.KBBK.",
-    "KB.BBKBBBBK",
-    "K.BBBBBBBBK",
-    "KB.BBBBBBBK",
-    "KBBBBBBBBBK",
-    ".KBBBBBBBK.",
-    "..KBBBBBK..",
-    "...KBBBK...",
-    "....KBK....",
-    ".....K....."
+    "BBYY",
+    "BBYY",
+    "BBYY",
+    "BBYY",
+    "BBYY",
+    "BBYY"
   ],
-  "initialSwaps": [
-    [
-      0,
-      2,
-      1,
-      2
-    ],
-    [
-      0,
-      8,
-      1,
-      8
-    ],
-    [
-      1,
-      4,
-      2,
-      4
-    ],
-    [
-      2,
-      5,
-      3,
-      5
-    ],
-    [
-      4,
-      0,
-      4,
-      3
-    ],
-    [
-      5,
-      10,
-      5,
-      8
-    ],
-    [
-      7,
-      2,
-      7,
-      4
-    ],
-    [
-      9,
-      6,
-      8,
-      5
-    ]
+  "initial": [
+    "YYBB",
+    "YYBB",
+    "YYBB",
+    "YYBB",
+    "YYBB",
+    "YYBB"
   ],
+  "initialSwaps": [],
   "starThresholds": {
-    "five": 8,
-    "four": 14
-  }
+    "five": 4,
+    "four": 8
+  },
+  "tutorialSteps": [
+    {
+      "id": "select_yellow",
+      "messageZh": "点击黄色宝石",
+      "messageEn": "Tap the yellow gem!",
+      "action": "select",
+      "cell": [4, 1]
+    },
+    {
+      "id": "to_shelf",
+      "messageZh": "把它们放在架子上",
+      "messageEn": "Put them on the shelf!",
+      "action": "tray",
+      "slot": 0
+    },
+    {
+      "id": "select_blue",
+      "messageZh": "点击蓝色宝石",
+      "messageEn": "Tap the blue gem!",
+      "action": "select",
+      "cell": [4, 2]
+    },
+    {
+      "id": "place_blue",
+      "messageZh": "把它们放在蓝色的格子上",
+      "messageEn": "Put them on the blue tiles!",
+      "action": "place",
+      "cell": [4, 0]
+    },
+    {
+      "id": "lift_yellow",
+      "messageZh": "把黄色宝石从架子上拿起来",
+      "messageEn": "Take the yellow gems off the shelf!",
+      "action": "lift",
+      "slot": 0
+    },
+    {
+      "id": "place_rest",
+      "messageZh": "把它们放在剩下的格子里",
+      "messageEn": "Put them in the remaining tiles!",
+      "action": "placeFromTray",
+      "cell": [4, 2]
+    }
+  ]
 }

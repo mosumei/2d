@@ -54,9 +54,10 @@ public getFirstEmptySlot(): number {
     private liftedSlots: number[] = [];
     private tileFrames: TileFrames = {};
 
-    private readonly slotSize = 60;
-    private readonly gemSize = 44;
+    private slotSize = 60;
+    private gemSize = 44;
     private readonly slotGap = 8;
+    private readonly maxTrayWidth = 640;
 
 public resetTray(capacity: number) {
     this.capacity = capacity;
@@ -76,8 +77,17 @@ public resetTray(capacity: number) {
         this.selectedIndex = -1;
         this.liftedSlots = [];
 
-        const step = this.slotSize + this.slotGap;
-        const width = this.capacity * step - this.slotGap;
+        const count = Math.max(1, this.capacity);
+        let slotSize = 60;
+        let width = count * (slotSize + this.slotGap) - this.slotGap;
+        if (width > this.maxTrayWidth) {
+            slotSize = Math.floor((this.maxTrayWidth + this.slotGap) / count - this.slotGap);
+            slotSize = Math.max(36, slotSize);
+            width = count * (slotSize + this.slotGap) - this.slotGap;
+        }
+        this.slotSize = slotSize;
+        this.gemSize = Math.round(slotSize * 0.72);
+        const step = slotSize + this.slotGap;
 
         for (let i = 0; i < this.capacity; i++) {
             const slot = new Node(`TraySlot_${i}`);

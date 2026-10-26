@@ -1,0 +1,31 @@
+{
+  "id": 5,
+  "name": "彩钻",
+  "gridType": "square",
+  "rows": 7,
+  "cols": 7,
+  "trayCapacity": 8,
+  "target": [
+    "...Y...",
+    "..YBY..",
+    ".YBGBY.",
+    "YBGKGBY",
+    ".YBGBY.",
+    "..YBY..",
+    "...Y..."
+  ],
+  "initial": [
+    "...K...",
+    "..BGB..",
+    ".YGBGY.",
+    "YBBYBBY",
+    ".YYGYY.",
+    "..YBY..",
+    "...Y..."
+  ],
+  "initialSwaps": [],
+  "starThresholds": {
+    "five": 10,
+    "four": 18
+  }
+}
