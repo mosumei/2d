@@ -16,6 +16,9 @@ import { LevelSession } from '../core/LevelSession';
 import { ArtifactCollectionManager, ARTIFACTS } from '../core/ArtifactCollectionManager';
 import { ArtifactCollectionUI } from '../ui/ArtifactCollectionUI';
 import { ToolsBarUI } from '../ui/ToolsBarUI';
+import { SettingsButton } from '../ui/SettingsButton';
+import { SettingsPanel } from '../ui/SettingsPanel';
+import { VibrationManager } from '../core/VibrationManager';
 import { JewelEffects } from './JewelEffects';
 
 const { ccclass, property } = _decorator;
@@ -164,6 +167,7 @@ onLoad() {
     }
 
     this.ensureCollectionEntry();
+    this.ensureSettingsEntry();
 }
 
     private ensureCollectionEntry() {
@@ -215,6 +219,77 @@ onLoad() {
         button.zoomScale = 1.06;
         node.on(Button.EventType.CLICK, () => {
             this.collectionPanel?.show();
+        }, this);
+
+        const complete = canvas.getChildByName('CompletePanel');
+        if (complete) {
+            node.setSiblingIndex(complete.getSiblingIndex());
+        }
+    }
+
+    /**
+     * 左上角「设置」入口。用代码创建，避免写进场景后被编辑器保存清掉。
+     */
+    private ensureSettingsEntry() {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+
+        let panel: SettingsPanel | null = null;
+        for (const child of canvas.children) {
+            const found = child.getComponent(SettingsPanel);
+            if (found) {
+                panel = found;
+                break;
+            }
+        }
+        if (panel) {
+            panel.node.active = false;
+        }
+
+        if (canvas.getChildByName('SettingsEntry')) return;
+
+        const node = new Node('SettingsEntry');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = canvas;
+        node.setPosition(-264, 588, 0);
+        node.addComponent(UITransform).setContentSize(120, 52);
+
+        const graphics = node.addComponent(Graphics);
+        graphics.fillColor = new Color(120, 78, 36, 80);
+        graphics.roundRect(-58, -30, 120, 52, 18);
+        graphics.fill();
+        graphics.fillColor = new Color(255, 246, 226, 255);
+        graphics.roundRect(-60, -26, 120, 52, 18);
+        graphics.fill();
+        graphics.strokeColor = new Color(196, 142, 64, 255);
+        graphics.lineWidth = 3;
+        graphics.roundRect(-60, -26, 120, 52, 18);
+        graphics.stroke();
+
+        const labelNode = new Node('ButtonLabel');
+        labelNode.layer = Layers.Enum.UI_2D;
+        labelNode.parent = node;
+        labelNode.addComponent(UITransform).setContentSize(96, 36);
+        const label = labelNode.addComponent(Label);
+        label.useSystemFont = true;
+        label.fontFamily = 'PingFang SC';
+        label.string = '设置';
+        label.fontSize = 22;
+        label.lineHeight = 28;
+        label.isBold = true;
+        label.color = new Color(92, 58, 32, 255);
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+
+        const opener = node.addComponent(SettingsButton);
+        opener.settingsPanel = panel;
+
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, () => {
+            panel?.node.setSiblingIndex(canvas.children.length - 1);
+            opener.openSettings();
         }, this);
 
         const complete = canvas.getChildByName('CompletePanel');
@@ -541,15 +616,18 @@ onLoad() {
             if (settled || !this.isValid) return;
             settled = true;
             this.unschedule(finish);
-            restore.apply();
-            this.effects?.hideWandRegion();
-            this.isAnimating = false;
+            try {
+                restore.apply();
+                this.effects?.hideWandRegion();
+            } finally {
+                this.isAnimating = false;
+            }
             this.notifyGemSettled(restore.changed);
             const matched = restore.changed.some(cell => cell.isCorrect());
             this.playPlacementSound(matched, false);
             if (restore.changed.length > 0) {
                 this.countMove();
-                this.checkCompleted();
+                this.vibrateAfterMove(matched, true);
             }
         };
 
@@ -791,7 +869,7 @@ onLoad() {
             this.notifyGemSettled([source, target]);
             this.clearSelection();
             this.countMove();
-            this.checkCompleted();
+            this.vibrateAfterMove(source.isCorrect() || target.isCorrect());
             return;
         }
 
@@ -845,7 +923,7 @@ onLoad() {
 
             this.isAnimating = false;
             this.countMove();
-            this.checkCompleted();
+            this.vibrateAfterMove(source.isCorrect() || target.isCorrect());
 
             console.log('宝石移动动画完成');
         });
@@ -1033,7 +1111,7 @@ onLoad() {
             const matched = changed.some(cell => cell.isCorrect());
             this.playPlacementSound(matched, false);
             this.countMove();
-            this.checkCompleted();
+            this.vibrateAfterMove(matched);
         };
 
         this.clearSelection();
@@ -1197,6 +1275,7 @@ onLoad() {
         this.finished = true;
         this.audioManager?.stopBGM();
         this.audioManager?.playComplete();
+        VibrationManager.levelCompleted();
 
         const level = this.levelManager.getCurrentLevel();
         const stars = this.levelManager.calculateStars(
@@ -1221,6 +1300,26 @@ onLoad() {
         // 调试模式也允许本机测试收藏，正式发布前请将 debugStartLevel 设为 0。
         const newlyCollected = ArtifactCollectionManager.collect(level);
         this.presentLevelComplete(stars, level, newlyCollected);
+    }
+
+    /**
+     * 一次操作结束后振动。刚通关时只保留通关振动。
+     * @param matched 是否有宝石正确归位
+     * @param wand 这次操作是否来自魔法棒
+     */
+    private vibrateAfterMove(matched: boolean, wand = false) {
+        const wasFinished = this.finished;
+        this.checkCompleted();
+        if (wasFinished || this.finished) {
+            return;
+        }
+        if (wand) {
+            VibrationManager.magicUsed();
+            return;
+        }
+        if (matched) {
+            VibrationManager.gemMatched();
+        }
     }
 
     private ensureEffects() {

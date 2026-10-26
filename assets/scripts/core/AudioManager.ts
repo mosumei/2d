@@ -7,6 +7,8 @@ import {
     sys
 } from 'cc';
 
+import { GameSettings } from './GameSettings';
+
 const { ccclass, property } = _decorator;
 
 @ccclass('AudioManager')
@@ -48,15 +50,40 @@ export class AudioManager extends Component {
     private soundEnabled = true;
     private musicEnabled = true;
 
-    private readonly soundKey = 'jewel_sound_enabled';
-    private readonly musicKey = 'jewel_music_enabled';
-
     onLoad() {
-        this.soundEnabled =
-            sys.localStorage.getItem(this.soundKey) !== 'false';
+        // 首次升级时，迁移旧版音效设置
+        this.migrateLegacySettings();
 
-        this.musicEnabled =
-            sys.localStorage.getItem(this.musicKey) !== 'false';
+        const settings = GameSettings.load();
+
+        this.soundEnabled = settings.soundEnabled;
+        this.musicEnabled = settings.musicEnabled;
+    }
+
+    private migrateLegacySettings() {
+        const newKey = 'jewel_crush_settings_v1';
+
+        // 已保存新版设置，不需要迁移
+        if (sys.localStorage.getItem(newKey) !== null) {
+            return;
+        }
+
+        const oldSound = sys.localStorage.getItem(
+            'jewel_sound_enabled'
+        );
+
+        const oldMusic = sys.localStorage.getItem(
+            'jewel_music_enabled'
+        );
+
+        if (oldSound === null && oldMusic === null) {
+            return;
+        }
+
+        GameSettings.update({
+            soundEnabled: oldSound !== 'false',
+            musicEnabled: oldMusic !== 'false'
+        });
     }
 
     private playSFX(clip: AudioClip | null) {
@@ -111,23 +138,35 @@ export class AudioManager extends Component {
 
     public setSoundEnabled(enabled: boolean) {
         this.soundEnabled = enabled;
-        sys.localStorage.setItem(
-            this.soundKey,
-            String(enabled)
-        );
+
+        GameSettings.update({
+            soundEnabled: enabled
+        });
     }
 
     public setMusicEnabled(enabled: boolean) {
+        if (this.musicEnabled === enabled) {
+            return;
+        }
+
         this.musicEnabled = enabled;
-        sys.localStorage.setItem(
-            this.musicKey,
-            String(enabled)
-        );
+
+        GameSettings.update({
+            musicEnabled: enabled
+        });
 
         if (enabled) {
             this.playBGM();
         } else {
             this.stopBGM();
         }
+    }
+
+    public isSoundEnabled(): boolean {
+        return this.soundEnabled;
+    }
+
+    public isMusicEnabled(): boolean {
+        return this.musicEnabled;
     }
 }

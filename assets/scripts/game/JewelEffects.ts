@@ -284,8 +284,13 @@ export class JewelEffects extends Component {
     }
 
     public hideWandRegion(): void {
-        if (this.wandRegion?.isValid) this.wandRegion.destroy();
+        const region = this.wandRegion;
         this.wandRegion = null;
+        if (!region?.isValid) return;
+        Tween.stopAllByTarget(region);
+        const opacity = region.getComponent(UIOpacity);
+        if (opacity) Tween.stopAllByTarget(opacity);
+        region.destroy();
     }
 
     private flashGemSprite(gem: Node): void {

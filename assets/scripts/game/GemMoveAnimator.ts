@@ -9,6 +9,7 @@ import {
     Layers,
     Vec3,
     tween,
+    Tween,
     Color
 } from 'cc';
 
@@ -50,20 +51,22 @@ export class GemMoveAnimator extends Component {
         }
 
         let settled = false;
+        const clearFlyers = () => {
+            for (const child of [...this.node.children]) {
+                if (child.name !== 'GemFlyer' || !child.isValid) continue;
+                Tween.stopAllByTarget(child);
+                child.destroy();
+            }
+        };
         const finish = () => {
             if (settled) return;
             settled = true;
+            this.unschedule(finish);
             this.unschedule(watchdog);
+            clearFlyers();
             onComplete();
         };
-        const watchdog = () => {
-            for (const child of [...this.node.children]) {
-                if (child.name === 'GemFlyer' && child.isValid) {
-                    child.destroy();
-                }
-            }
-            finish();
-        };
+        const watchdog = () => finish();
 
         let completed = 0;
         let started = 0;
@@ -103,9 +106,8 @@ export class GemMoveAnimator extends Component {
                     scale: new Vec3(scale, scale, 1)
                 }, { easing: 'sineInOut' })
                 .call(() => {
-                    if (flyer.isValid) flyer.destroy();
                     completed += 1;
-                    if (completed >= started) finish();
+                    if (completed >= started) this.scheduleOnce(finish, 0);
                 })
                 .start();
         }
