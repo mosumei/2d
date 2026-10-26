@@ -1,4 +1,4 @@
-import { sys } from 'cc';
+import { native, sys } from 'cc';
 import { GameSettings } from './GameSettings';
 
 export type VibrationType = 'light' | 'medium' | 'heavy';
@@ -55,8 +55,9 @@ export class VibrationManager {
             }
 
             // 4. 原生 iOS / Android
-            // 原生平台需要专门的系统桥接实现
+            // 对应实现在 native-vibration/。构建原生工程后把源文件放进 native/engine。
             if (sys.isNative) {
+                this.vibrateNative(type);
                 return;
             }
 
@@ -79,6 +80,42 @@ export class VibrationManager {
                 '[VibrationManager] 振动调用失败:',
                 error
             );
+        }
+    }
+
+    /**
+     * 调用 iOS / Android 工程里的 Vibration 类。
+     * @param type 振动强度
+     */
+    private static vibrateNative(type: VibrationType): void {
+        if (typeof native.reflection?.callStaticMethod !== 'function') {
+            return;
+        }
+
+        switch (sys.os) {
+            case sys.OS.IOS:
+                native.reflection.callStaticMethod('Vibration', 'vibrate:', type);
+                return;
+            case sys.OS.ANDROID:
+                native.reflection.callStaticMethod(
+                    'com/cocos/game/Vibration',
+                    'vibrate',
+                    '(Ljava/lang/String;)V',
+                    type
+                );
+                return;
+            case sys.OS.OSX:
+            case sys.OS.WINDOWS:
+            case sys.OS.LINUX:
+            case sys.OS.OHOS:
+            case sys.OS.OPENHARMONY:
+            case sys.OS.UNKNOWN:
+                return;
+            default: {
+                const unsupported: never = sys.os;
+                void unsupported;
+                return;
+            }
         }
     }
 

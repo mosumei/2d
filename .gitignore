@@ -22,3 +22,18 @@ node_modules/
 # WebStorm
 #//////////////////////////
 .idea/
+# Cocos Creator custom engine
+/custom-engine/
+
+# Generated build files
+/build/
+/temp/
+/library/
+/local/
+/profiles/
+
+# Dependencies
+/node_modules/
+
+# macOS
+.DS_Store
