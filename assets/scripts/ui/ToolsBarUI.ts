@@ -1,6 +1,7 @@
 import {
     _decorator, Component, Node, Label, Button, UITransform,
-    Graphics, Color, Layers, Sprite, SpriteFrame, resources, isValid
+    Graphics, Color, Layers, Sprite, SpriteFrame, resources, isValid,
+    tween, Tween, Vec3
 } from 'cc';
 
 const { ccclass } = _decorator;
@@ -9,9 +10,11 @@ const { ccclass } = _decorator;
 export class ToolsBarUI extends Component {
     private built = false;
     private wandButton: Node | null = null;
+    private magnetButton: Node | null = null;
     private adBadges: Node[] = [];
     public onWandClick: (() => void) | null = null;
     public onHintClick: (() => void) | null = null;
+    public onMagnetClick: (() => void) | null = null;
 
     onLoad() {
         this.build();
@@ -80,6 +83,14 @@ export class ToolsBarUI extends Component {
             }, this);
         }
 
+        if (name === 'MagnetButton') {
+            this.magnetButton = buttonNode;
+            this.adBadges.push(this.makeAdBadge(buttonNode));
+            buttonNode.on(Button.EventType.CLICK, () => {
+                this.onMagnetClick?.();
+            }, this);
+        }
+
         if (lockLevel !== undefined) {
             const overlay = new Node('LockOverlay');
             overlay.layer = Layers.Enum.UI_2D;
@@ -144,6 +155,33 @@ export class ToolsBarUI extends Component {
         const labelTransform = label.node.getComponent(UITransform);
         if (labelTransform) Object.assign(labelTransform, { hitTest: () => false });
         return node;
+    }
+
+    /**
+     * 磁铁工作时左右摇晃图标。
+     */
+    public playMagnetShake() {
+        const icon = this.magnetButton?.getChildByName('Icon');
+        if (!icon) return;
+        Tween.stopAllByTarget(icon);
+        icon.setPosition(0, 8, 0);
+        tween(icon)
+            .repeatForever(
+                tween(icon)
+                    .to(0.08, { position: new Vec3(6, 8, 0) })
+                    .to(0.08, { position: new Vec3(-6, 8, 0) })
+            )
+            .start();
+    }
+
+    /**
+     * 磁铁结束后把图标放回原位。
+     */
+    public stopMagnetShake() {
+        const icon = this.magnetButton?.getChildByName('Icon');
+        if (!icon?.isValid) return;
+        Tween.stopAllByTarget(icon);
+        icon.setPosition(0, 8, 0);
     }
 
     public setWandArmed(armed: boolean) {

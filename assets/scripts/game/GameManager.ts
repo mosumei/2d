@@ -25,6 +25,7 @@ import {
 } from './TutorialManager';
 import { MagicWandAdGate } from './MagicWandAdGate';
 import { HintEffect } from './HintEffect';
+import { MagnetManager } from './MagnetManager';
 import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
 
@@ -39,6 +40,11 @@ type Selection =
 type WandSource =
     | { kind: 'cell'; cell: GemCell }
     | { kind: 'tray'; index: number };
+
+type MagnetMove =
+    | { kind: 'place'; source: GemCell; dest: GemCell }
+    | { kind: 'swap'; source: GemCell; dest: GemCell }
+    | { kind: 'tray'; slot: number; dest: GemCell };
 
 
 @ccclass('GameManager')
@@ -74,6 +80,9 @@ export class GameManager extends Component {
     private toolsBar: ToolsBarUI | null = null;
     private toolsNode: Node | null = null;
     private hintEffect: HintEffect | null = null;
+    private magnetManager: MagnetManager | null = null;
+    private magnetRunning = false;
+    private magnetLocked = 0;
     private tutorial: TutorialManager | null = null;
     private tutorialRunning = false;
     private artifactReveal: Node | null = null;
@@ -335,8 +344,10 @@ onLoad() {
             this.toolsBar = bar;
             bar.onWandClick = () => this.toggleWand();
             bar.onHintClick = () => this.useHint();
+            bar.onMagnetClick = () => this.useMagnet();
         }
         this.ensureHintEffect();
+        this.ensureMagnetManager();
 
         this.ensureEffects();
         this.ensureArtifactReveal();
@@ -418,7 +429,7 @@ onLoad() {
     // ===== 点击棋盘格子 =====
 
     private onBoardClick(cell: GemCell) {
-        if (this.isAnimating) return;
+        if (this.isAnimating || this.magnetRunning) return;
         if (this.finished) return;
 
         if (this.tutorialRunning && !this.tutorial?.allowBoard(cell)) return;
@@ -471,7 +482,7 @@ onLoad() {
     }
 
     private toggleWand() {
-        if (this.finished || this.isAnimating || this.tutorial?.blocksInput()) return;
+        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
         if (this.wandMode) {
             this.setWandMode(false);
             this.audioManager?.playClick();
@@ -504,11 +515,211 @@ onLoad() {
         this.hintEffect = node.getComponent(HintEffect) ?? node.addComponent(HintEffect);
     }
 
+    private ensureMagnetManager() {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+        let node = canvas.getChildByName('MagnetManager');
+        if (!node) {
+            node = new Node('MagnetManager');
+            node.layer = Layers.Enum.UI_2D;
+            node.parent = canvas;
+        }
+        this.magnetManager = node.getComponent(MagnetManager) ?? node.addComponent(MagnetManager);
+    }
+
+    /**
+     * 先确认有能锁定的宝石，再决定要不要看广告。没有可归位的宝石时不播广告。
+     */
+    private useMagnet() {
+        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
+        if (!this.findMagnetMove(3)) {
+            this.showFloatingTip('HintTip', '没有可以归位的宝石');
+            return;
+        }
+
+        const level = this.levelManager?.getCurrentLevel() ?? 1;
+        if (level <= 2) {
+            void this.runMagnet();
+            return;
+        }
+
+        this.isAnimating = true;
+        void TikTokAdsManager.showRewardedAd().then((result) => {
+            if (!this.isValid) return;
+            this.isAnimating = false;
+            if (result === 'unavailable') this.showTikTokAdTip();
+            if (result !== 'completed' || this.finished || this.magnetRunning) return;
+            if (!this.findMagnetMove(3)) return;
+            void this.runMagnet();
+        });
+    }
+
+    private async runMagnet() {
+        const magnet = this.magnetManager;
+        if (!magnet || this.magnetRunning) return;
+
+        this.magnetRunning = true;
+        this.magnetLocked = 0;
+        this.toolsBar?.playMagnetShake();
+        try {
+            await magnet.activate(
+                () => this.findMagnetMove(3 - this.magnetLocked),
+                async (move) => {
+                    const count = await this.executeMagnetMove(move);
+                    if (count <= 0) return false;
+                    this.magnetLocked += count;
+                    return true;
+                }
+            );
+        } finally {
+            this.magnetRunning = false;
+            this.magnetLocked = 0;
+            this.toolsBar?.stopMagnetShake();
+        }
+    }
+
+    /**
+     * 找一颗能立刻锁定的宝石。交换会锁定两颗，剩余名额不足两颗时不交换。
+     * @param remaining 这次磁铁还能锁定的颗数
+     */
+    private findMagnetMove(remaining: number): MagnetMove | null {
+        if (remaining <= 0 || this.finished) return null;
+        const board = this.boardManager;
+        if (!board || board.isCompleted()) return null;
+
+        const cells = board.getCells();
+        const empties = cells.filter(cell =>
+            cell.currentColor === null && cell.targetColor !== null
+        );
+
+        for (const source of cells) {
+            if (!source.canMove() || !source.currentColor) continue;
+            const dest = empties.find(cell => cell.targetColor === source.currentColor);
+            if (!dest) continue;
+            return { kind: 'place', source, dest };
+        }
+
+        if (remaining >= 2) {
+            for (const source of cells) {
+                if (!source.canMove() || !source.currentColor || !source.targetColor) continue;
+                const dest = cells.find(cell =>
+                    cell !== source &&
+                    cell.canMove() &&
+                    cell.currentColor === source.targetColor &&
+                    cell.targetColor === source.currentColor
+                );
+                if (!dest) continue;
+                return { kind: 'swap', source, dest };
+            }
+        }
+
+        const tray = this.trayManager;
+        if (!tray) return null;
+        for (let slot = 0; ; slot++) {
+            const slotNode = tray.getSlotNode(slot);
+            if (!slotNode) break;
+            const color = tray.getGemAt(slot);
+            if (!color) continue;
+            const dest = empties.find(cell => cell.targetColor === color);
+            if (!dest) continue;
+            return { kind: 'tray', slot, dest };
+        }
+    }
+
+    private async executeMagnetMove(move: MagnetMove): Promise<number> {
+        switch (move.kind) {
+            case 'place':
+                return this.placeOneGem(move.source, move.dest);
+            case 'swap':
+                return this.swapOnePair(move.source, move.dest);
+            case 'tray':
+                return this.placeOneFromTray(move.slot, move.dest);
+            default: {
+                const unknown: never = move;
+                void unknown;
+                return 0;
+            }
+        }
+    }
+
+    private async placeOneGem(source: GemCell, dest: GemCell): Promise<number> {
+        const color = source.currentColor;
+        const frame = source.gemSprite?.spriteFrame;
+        if (!color || !frame || dest.currentColor !== null || dest.targetColor !== color) return 0;
+
+        this.hideMovedGems([source]);
+        await this.runMoves([{
+            frame,
+            from: source.node,
+            to: dest.node,
+            startSize: 46,
+            endSize: 46
+        }], () => {
+            source.setCurrentColor(null);
+            dest.setCurrentColor(color);
+        }, [source, dest]);
+        return dest.isCorrect() ? 1 : 0;
+    }
+
+    private async swapOnePair(source: GemCell, dest: GemCell): Promise<number> {
+        const colorA = source.currentColor;
+        const colorB = dest.currentColor;
+        const frameA = source.gemSprite?.spriteFrame;
+        const frameB = dest.gemSprite?.spriteFrame;
+        if (!colorA || !colorB || !frameA || !frameB) return 0;
+        if (source.targetColor !== colorB || dest.targetColor !== colorA) return 0;
+
+        this.hideMovedGems([source, dest]);
+        await this.runMoves([
+            {
+                frame: frameA,
+                from: source.node,
+                to: dest.node,
+                startSize: 46,
+                endSize: 46
+            },
+            {
+                frame: frameB,
+                from: dest.node,
+                to: source.node,
+                startSize: 46,
+                endSize: 46
+            }
+        ], () => {
+            source.setCurrentColor(colorB);
+            dest.setCurrentColor(colorA);
+        }, [source, dest]);
+        return (source.isCorrect() ? 1 : 0) + (dest.isCorrect() ? 1 : 0);
+    }
+
+    private async placeOneFromTray(slot: number, dest: GemCell): Promise<number> {
+        const tray = this.trayManager;
+        const color = tray?.getGemAt(slot);
+        const slotNode = tray?.getSlotNode(slot);
+        const sourceGem = slotNode?.getChildByName('GemImage');
+        const frame = sourceGem?.getComponent(Sprite)?.spriteFrame;
+        if (!tray || !color || !slotNode || !sourceGem || !frame) return 0;
+        if (dest.currentColor !== null || dest.targetColor !== color) return 0;
+
+        sourceGem.active = false;
+        await this.runMoves([{
+            frame,
+            from: slotNode,
+            to: dest.node,
+            startSize: 44,
+            endSize: 46
+        }], () => {
+            tray.setGemAt(slot, null);
+            dest.setCurrentColor(color);
+        }, [dest]);
+        return dest.isCorrect() ? 1 : 0;
+    }
+
     /**
      * 先确认有合法提示，再决定要不要看广告。没有提示时不播广告。
      */
     private useHint() {
-        if (this.finished || this.isAnimating || this.tutorial?.blocksInput()) return;
+        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
         if (!this.findBestHint()) {
             this.showNoHintTip();
             return;
@@ -1390,27 +1601,30 @@ onLoad() {
         moves: GemMove[],
         commit: () => void,
         changed: GemCell[]
-    ) {
-        const finish = () => {
-            commit();
-            this.isAnimating = false;
-            this.notifyGemSettled(changed);
-            const matched = changed.some(cell => cell.isCorrect());
-            this.playPlacementSound(matched, false);
-            this.countMove();
-            this.noteTutorialProgress();
-            this.vibrateAfterMove(matched);
-        };
+    ): Promise<void> {
+        return new Promise((resolve) => {
+            const finish = () => {
+                commit();
+                this.isAnimating = false;
+                this.notifyGemSettled(changed);
+                const matched = changed.some(cell => cell.isCorrect());
+                this.playPlacementSound(matched, false);
+                this.countMove();
+                this.noteTutorialProgress();
+                this.vibrateAfterMove(matched);
+                resolve();
+            };
 
-        this.hintEffect?.clearHint();
-        this.clearSelection();
-        if (!this.moveAnimator || moves.length === 0) {
-            finish();
-            return;
-        }
+            this.hintEffect?.clearHint();
+            this.clearSelection();
+            if (!this.moveAnimator || moves.length === 0) {
+                finish();
+                return;
+            }
 
-        this.isAnimating = true;
-        this.moveAnimator.play(moves, finish);
+            this.isAnimating = true;
+            this.moveAnimator.play(moves, finish);
+        });
     }
 
     // ===== 点击托盘 =====
@@ -1420,6 +1634,7 @@ onLoad() {
         if (
             this.finished ||
             this.isAnimating ||
+            this.magnetRunning ||
             !this.trayManager
         ) return;
 
