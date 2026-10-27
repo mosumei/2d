@@ -103,4 +103,25 @@ export class LevelSession {
     public static continueGame() {
         this.selectedLevel = null;
     }
+
+    /**
+     * 把已解锁关卡和星级再写进本机。没有存档时写入默认进度。
+     */
+    public static flushProgress(): void {
+        const raw = sys.localStorage.getItem(this.SAVE_KEY);
+        if (raw) {
+            sys.localStorage.setItem(this.SAVE_KEY, raw);
+            return;
+        }
+
+        const progress = this.getProgress();
+        sys.localStorage.setItem(
+            this.SAVE_KEY,
+            JSON.stringify({
+                highestUnlockedLevel: progress.highestUnlockedLevel,
+                lastPlayedLevel: progress.lastPlayedLevel,
+                levelRecords: progress.levelRecords ?? {}
+            })
+        );
+    }
 }

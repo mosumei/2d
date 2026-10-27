@@ -14,6 +14,9 @@ import {
     Layers
 } from 'cc';
 
+import { localize } from '../core/Locale';
+import { MainMenuSettings } from './MainMenuSettings';
+
 const { ccclass, property } = _decorator;
 
 @ccclass('MainMenuUI')
@@ -33,6 +36,8 @@ export class MainMenuUI extends Component {
 
         const buttonNode = this.startButton.node;
         this.ensurePlainLook(buttonNode);
+        const canvas = buttonNode.parent;
+        if (canvas) MainMenuSettings.attach(canvas);
 
         // 启动自动呼吸动画
         this.startBreathingAnimation();
@@ -58,7 +63,7 @@ export class MainMenuUI extends Component {
             const label = labelNode.addComponent(Label);
             label.useSystemFont = true;
             label.fontFamily = 'PingFang SC';
-            label.string = '开始';
+            label.string = localize('开始', 'Start');
             label.fontSize = 42;
             label.lineHeight = 50;
             label.isBold = true;
@@ -116,6 +121,9 @@ export class MainMenuUI extends Component {
     // 点击后立即进入游戏
     private onStartGame() {
         if (this.isStarting || !this.startButton) return;
+        const panel = this.startButton.node.parent
+            ?.getChildByName('MainMenuSettingsPanel');
+        if (panel?.active) return;
 
         this.isStarting = true;
 

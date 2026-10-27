@@ -151,19 +151,23 @@ public resetTray(capacity: number) {
 
     // 同一色的槽一起描边，并把棋子弹高，表示已拿起、尚未放回拼图。
     public setLiftedSlots(indices: number[]) {
-        const previous = this.liftedSlots;
-        this.liftedSlots = [...indices];
-        this.selectedIndex = indices.length > 0 ? indices[0] : -1;
+        if (!this.isValid) return;
+
+        const previous = Array.isArray(this.liftedSlots) ? this.liftedSlots : [];
+        const next = Array.isArray(indices) ? indices : [];
+        this.liftedSlots = [...next];
+        this.selectedIndex = next.length > 0 ? next[0] : -1;
+        if (!Array.isArray(this.slots)) return;
 
         const dirty: number[] = [];
         for (const index of previous) {
             if (dirty.indexOf(index) < 0) dirty.push(index);
         }
-        for (const index of indices) {
+        for (const index of next) {
             if (dirty.indexOf(index) < 0) dirty.push(index);
         }
         for (const index of dirty) {
-            if (!this.slots[index]) continue;
+            if (!this.slots[index]?.isValid) continue;
             this.drawSlot(index);
             this.applyLift(index);
         }

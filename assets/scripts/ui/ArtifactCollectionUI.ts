@@ -4,6 +4,7 @@ import {
     Graphics, Layers, BlockInputEvents
 } from 'cc';
 import { ARTIFACTS, ArtifactCollectionManager } from '../core/ArtifactCollectionManager';
+import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
 
@@ -61,7 +62,10 @@ export class ArtifactCollectionUI extends Component {
 
         const owned = ArtifactCollectionManager.getAll();
         if (this.counterLabel) {
-            this.counterLabel.string = `已修复 ${owned.length} 件`;
+            this.counterLabel.string = localize(
+                `已修复 ${owned.length} 件`,
+                `${owned.length} restored`
+            );
         }
 
         const visible = owned.filter(record => ARTIFACTS[record.level]);
@@ -80,7 +84,7 @@ export class ArtifactCollectionUI extends Component {
             }, this);
 
             const title = item.getChildByName('Name')?.getComponent(Label);
-            if (title) title.string = info.name;
+            if (title) title.string = localize(info.name, info.nameEn);
 
             const image = item.getChildByName('Artwork')?.getComponent(Sprite);
             if (!image) continue;
@@ -98,10 +102,20 @@ export class ArtifactCollectionUI extends Component {
 
         this.detail.active = true;
         this.detail.setSiblingIndex(this.node.children.length - 1);
-        if (this.detailName) this.detailName.string = info.name;
-        if (this.detailState) this.detailState.string = '已修复 · 已收藏';
-        if (this.detailLevel) this.detailLevel.string = `所属关卡    LEVEL ${level}`;
-        if (this.detailKeep) this.detailKeep.string = '收藏状态    永久收藏（本机）';
+        if (this.detailName) this.detailName.string = localize(info.name, info.nameEn);
+        if (this.detailState) this.detailState.string = localize('已修复 · 已收藏', 'Restored · Collected');
+        if (this.detailLevel) {
+            this.detailLevel.string = localize(
+                `所属关卡    LEVEL ${level}`,
+                `Level    LEVEL ${level}`
+            );
+        }
+        if (this.detailKeep) {
+            this.detailKeep.string = localize(
+                '收藏状态    永久收藏（本机）',
+                'Saved on this device'
+            );
+        }
         if (this.detailImage) {
             this.detailImage.spriteFrame = null;
             this.detailImage.node.active = false;
@@ -148,12 +162,12 @@ export class ArtifactCollectionUI extends Component {
         floorGraphics.fill();
 
         if (!this.node.getChildByName('CollectionTitle')) {
-            const title = this.makeLabel('CollectionTitle', '我的文物收藏', 40, 470, new Color(92, 58, 32, 255));
+            const title = this.makeLabel('CollectionTitle', localize('我的文物收藏', 'My Collection'), 40, 470, new Color(92, 58, 32, 255));
             title.node.parent = this.node;
         }
 
         if (!this.counterLabel) {
-            this.counterLabel = this.makeLabel('CounterLabel', '已修复 0 件', 24, 415, new Color(120, 86, 52, 255));
+            this.counterLabel = this.makeLabel('CounterLabel', localize('已修复 0 件', '0 restored'), 24, 415, new Color(120, 86, 52, 255));
             this.counterLabel.node.parent = this.node;
         }
 
@@ -217,7 +231,7 @@ export class ArtifactCollectionUI extends Component {
         this.detailKeep.node.parent = card;
         this.detailKeep.node.setPosition(0, -204, 0);
 
-        this.makeTextButton(card, '返回', 0, -320, () => this.closeDetail());
+        this.makeTextButton(card, localize('返回', 'Back'), 0, -320, () => this.closeDetail());
         this.detail = detail;
     }
 

@@ -232,6 +232,13 @@ export class LevelManager extends Component {
         }
     }
 
+    /**
+     * 把已通关的星级和解锁再写进本机。不保存当前这一盘的棋子位置。
+     */
+    public flushProgress(): void {
+        this.saveProgress();
+    }
+
     // 通关后解锁下一关
     public unlockNextLevel() {
         const next = this.currentLevel + 1;
@@ -264,6 +271,13 @@ export class LevelManager extends Component {
         }
 
         this.lastPlayedLevel = level;
+        this.saveProgress();
+    }
+
+    /**
+     * 把已通关的星级和解锁再写进本机。不保存当前这一盘的棋子位置。
+     */
+    public flushProgress(): void {
         this.saveProgress();
     }
 

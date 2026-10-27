@@ -5,6 +5,7 @@ import {
 } from 'cc';
 import { StarRating } from './StarRating';
 import { ARTIFACTS } from '../core/ArtifactCollectionManager';
+import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
 
@@ -39,9 +40,9 @@ export class CompletePanelUI extends Component {
         this.restartButton?.node.on(Button.EventType.CLICK, this.handleRestart, this);
         this.homeButton?.node.on(Button.EventType.CLICK, this.handleHome, this);
         this.collectionButton?.node.on(Button.EventType.CLICK, this.handleCollection, this);
-        this.ensurePlainButtonLabel(this.nextButton, '下一关');
-        this.ensurePlainButtonLabel(this.restartButton, '重来');
-        this.ensurePlainButtonLabel(this.homeButton, '主页');
+        this.ensurePlainButtonLabel(this.nextButton, localize('下一关', 'Next'));
+        this.ensurePlainButtonLabel(this.restartButton, localize('重来', 'Replay'));
+        this.ensurePlainButtonLabel(this.homeButton, localize('主页', 'Home'));
     }
 
     public show(earnedStars: number = 3, level: number = 1, newlyCollected = false) {
@@ -49,11 +50,15 @@ export class CompletePanelUI extends Component {
         this.node.active = true;
         this.starRating?.showStars(earnedStars);
         const artifact = ARTIFACTS[level];
-        if (this.artifactName) this.artifactName.string = artifact?.name ?? `LEVEL ${level}`;
+        if (this.artifactName) {
+            this.artifactName.string = artifact
+                ? localize(artifact.name, artifact.nameEn)
+                : `LEVEL ${level}`;
+        }
         if (this.rewardStatus) {
             this.rewardStatus.string = newlyCollected
-                ? '新文物已收藏！'
-                : '已收入我的文物收藏';
+                ? localize('新文物已收藏！', 'New artifact collected!')
+                : localize('已收入我的文物收藏', 'Added to your collection');
         }
 
         const token = ++this.showToken;
@@ -131,9 +136,9 @@ export class CompletePanelUI extends Component {
         }
 
         if (!this.collectionButton) {
-            this.collectionButton = this.makeButton(card, 'CollectionButton', '查看我的文物');
+            this.collectionButton = this.makeButton(card, 'CollectionButton', localize('查看我的文物', 'My Collection'));
         }
-        this.attachButtonLabel(this.collectionButton.node, '查看我的文物');
+        this.attachButtonLabel(this.collectionButton.node, localize('查看我的文物', 'My Collection'));
     }
 
     private layoutPopup() {

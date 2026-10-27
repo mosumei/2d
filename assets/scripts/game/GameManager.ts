@@ -29,6 +29,7 @@ import { MagnetManager } from './MagnetManager';
 import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
 import { GemCompletionShine } from './GemCompletionShine';
+import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
 
@@ -227,7 +228,8 @@ onLoad() {
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
-        label.string = '我的文物';
+        label.string = localize('我的文物', 'Collection');
+        label.overflow = Label.Overflow.SHRINK;
         label.fontSize = 22;
         label.lineHeight = 28;
         label.isBold = true;
@@ -264,7 +266,20 @@ onLoad() {
             }
         }
         if (panel) {
-            panel.node.active = false;
+            const settings = panel;
+            settings.node.active = false;
+            settings.onSave = () => {
+                this.levelManager?.flushProgress();
+                this.showFloatingTip('HintTip', localize('已保存', 'Saved'));
+            };
+            settings.onHome = () => {
+                settings.closePanel();
+                director.loadScene('MainMenu');
+            };
+            settings.onReplay = () => {
+                settings.closePanel();
+                this.restartLevel();
+            };
         }
 
         if (canvas.getChildByName('SettingsEntry')) return;
@@ -294,7 +309,8 @@ onLoad() {
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
-        label.string = '设置';
+        label.string = localize('设置', 'Settings');
+        label.overflow = Label.Overflow.SHRINK;
         label.fontSize = 22;
         label.lineHeight = 28;
         label.isBold = true;
@@ -317,6 +333,19 @@ onLoad() {
         if (complete) {
             node.setSiblingIndex(complete.getSiblingIndex());
         }
+    }
+
+    /**
+     * 设置面板打开时，棋盘、托盘和道具都不响应。
+     */
+    private isSettingsOpen(): boolean {
+        const canvas = this.node.parent;
+        if (!canvas) return false;
+        for (const child of canvas.children) {
+            const panel = child.getComponent(SettingsPanel);
+            if (panel?.node.active) return true;
+        }
+        return false;
     }
 
 
@@ -364,12 +393,15 @@ onLoad() {
     // ===== 统一处理选中状态 =====
 
     private clearSelection() {
-        for (const cell of this.selectedGroup) {
-            cell.setSelected(false);
+        const group = Array.isArray(this.selectedGroup) ? this.selectedGroup : [];
+        for (const cell of group) {
+            if (cell?.isValid) cell.setSelected(false);
         }
         this.selectedGroup = [];
 
-        this.trayManager?.setSelectedIndex(-1);
+        if (this.trayManager?.isValid) {
+            this.trayManager.setSelectedIndex(-1);
+        }
         this.selected = null;
     }
 
@@ -430,7 +462,7 @@ onLoad() {
     // ===== 点击棋盘格子 =====
 
     private onBoardClick(cell: GemCell) {
-        if (this.isAnimating || this.magnetRunning) return;
+        if (this.isSettingsOpen() || this.isAnimating || this.magnetRunning) return;
         if (this.finished) return;
 
         if (this.tutorialRunning && !this.tutorial?.allowBoard(cell, this.boardManager)) return;
@@ -483,7 +515,7 @@ onLoad() {
     }
 
     private toggleWand() {
-        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
+        if (this.finished || this.isSettingsOpen() || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
         if (this.wandMode) {
             this.setWandMode(false);
             this.audioManager?.playClick();
@@ -532,9 +564,9 @@ onLoad() {
      * 先确认有能锁定的宝石，再决定要不要看广告。没有可归位的宝石时不播广告。
      */
     private useMagnet() {
-        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
+        if (this.finished || this.isSettingsOpen() || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
         if (!this.findMagnetMove(3)) {
-            this.showFloatingTip('HintTip', '没有可以归位的宝石');
+            this.showFloatingTip('HintTip', localize('没有可以归位的宝石', 'No gem to place'));
             return;
         }
 
@@ -730,7 +762,7 @@ onLoad() {
      * 先确认有合法提示，再决定要不要看广告。没有提示时不播广告。
      */
     private useHint() {
-        if (this.finished || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
+        if (this.finished || this.isSettingsOpen() || this.isAnimating || this.magnetRunning || this.tutorial?.blocksInput()) return;
         if (!this.findBestHint()) {
             this.showNoHintTip();
             return;
@@ -814,7 +846,7 @@ onLoad() {
     }
 
     private showNoHintTip() {
-        this.showFloatingTip('HintTip', '没有可以提示的步骤');
+        this.showFloatingTip('HintTip', localize('没有可以提示的步骤', 'No move to hint'));
     }
 
     private setWandMode(armed: boolean) {
@@ -829,7 +861,10 @@ onLoad() {
     private showTikTokAdTip() {
         this.showFloatingTip(
             'TikTokAdTip',
-            '广告只有在 ttmg 开发者工具里才能看到\n目前只接了 TikTok'
+            localize(
+                '广告只有在 ttmg 开发者工具里才能看到\n目前只接了 TikTok',
+                'Ads only show in the ttmg developer tool\nOnly TikTok is connected for now'
+            )
         );
     }
 
@@ -1663,6 +1698,7 @@ onLoad() {
     private onTrayClick(index: number) {
         if (
             this.finished ||
+            this.isSettingsOpen() ||
             this.isAnimating ||
             this.magnetRunning ||
             !this.trayManager
@@ -2069,13 +2105,11 @@ onLoad() {
     }
 
     onDestroy() {
-        this.clearSelection();
-
-        if (this.boardManager) {
+        if (this.boardManager?.isValid) {
             this.boardManager.onCellClicked = null;
         }
 
-        if (this.trayManager) {
+        if (this.trayManager?.isValid) {
             this.trayManager.onSlotClicked = null;
         }
     }

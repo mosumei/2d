@@ -4,6 +4,8 @@ import {
     tween, Tween, Vec3
 } from 'cc';
 
+import { localize } from '../core/Locale';
+
 const { ccclass } = _decorator;
 
 @ccclass('ToolsBarUI')
@@ -28,9 +30,9 @@ export class ToolsBarUI extends Component {
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
         root.setContentSize(480, 120);
 
-        this.makeTool('MagicWandButton', -150, '魔法棒', 'ui/tools/tool_magic_wand');
-        this.makeTool('HintButton', 0, '放大镜', 'ui/tools/tool_magnifier');
-        this.makeTool('MagnetButton', 150, '磁铁', 'ui/tools/tool_magnet');
+        this.makeTool('MagicWandButton', -150, localize('魔法棒', 'Wand'), 'ui/tools/tool_magic_wand');
+        this.makeTool('HintButton', 0, localize('放大镜', 'Hint'), 'ui/tools/tool_magnifier');
+        this.makeTool('MagnetButton', 150, localize('磁铁', 'Magnet'), 'ui/tools/tool_magnet');
     }
 
     private makeTool(
@@ -149,7 +151,7 @@ export class ToolsBarUI extends Component {
         graphics.roundRect(-48, -14, 96, 28, 14);
         graphics.fill();
 
-        const label = this.makeText('BadgeLabel', '查看广告', 14, new Color(255, 246, 226, 255));
+        const label = this.makeText('BadgeLabel', localize('查看广告', 'Watch Ad'), 14, new Color(255, 246, 226, 255));
         label.node.parent = node;
         label.node.getComponent(UITransform)?.setContentSize(88, 24);
         const labelTransform = label.node.getComponent(UITransform);

@@ -2,12 +2,18 @@
 import { sys } from 'cc';
 
 /**
+ * 界面语言。system 表示跟随系统。
+ */
+export type GameLanguage = 'system' | 'zh' | 'en';
+
+/**
  * Jewel Crush 全局游戏设置
  */
 export interface GameSettingsData {
     soundEnabled: boolean;       // 游戏音效
     musicEnabled: boolean;       // 背景音乐
     vibrationEnabled: boolean;   // 振动反馈
+    language: GameLanguage;
 }
 
 export class GameSettings {
@@ -19,6 +25,7 @@ export class GameSettings {
         soundEnabled: true,
         musicEnabled: true,
         vibrationEnabled: true,
+        language: 'system',
     };
 
     /**
@@ -51,6 +58,8 @@ export class GameSettings {
                     typeof data.vibrationEnabled === 'boolean'
                         ? data.vibrationEnabled
                         : defaults.vibrationEnabled,
+
+                language: this.readLanguage(data.language),
             };
 
         } catch (error) {
@@ -130,5 +139,31 @@ export class GameSettings {
      */
     public static setVibrationEnabled(enabled: boolean): void {
         this.update({ vibrationEnabled: enabled });
+    }
+
+    /**
+     * 读取界面语言。没有存过时是跟随系统。
+     */
+    public static getLanguage(): GameLanguage {
+        return this.load().language;
+    }
+
+    /**
+     * 保存界面语言。
+     * @param language system 跟随系统，zh 中文，en 英文
+     */
+    public static setLanguage(language: GameLanguage): void {
+        this.update({ language });
+    }
+
+    private static readLanguage(value: unknown): GameLanguage {
+        switch (value) {
+            case 'system':
+            case 'zh':
+            case 'en':
+                return value;
+            default:
+                return 'system';
+        }
     }
 }
