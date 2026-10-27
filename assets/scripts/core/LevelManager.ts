@@ -331,6 +331,21 @@ export class LevelManager extends Component {
     }
 
 
+    /**
+     * 孔的位置是否一致。按字符下标比较，避免小程序把字符串展开编译成整行。
+     * @param row 初始行
+     * @param targetRow 目标行
+     */
+    private static holesMatch(row: string, targetRow: string): boolean {
+        if (row.length !== targetRow.length) return false;
+        for (let column = 0; column < row.length; column++) {
+            if ((row.charAt(column) === '.') !== (targetRow.charAt(column) === '.')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private validateLevel(data: LevelData): boolean {
         if (
             !data ||
@@ -404,11 +419,7 @@ export class LevelManager extends Component {
                     (row, r) =>
                         row.length === data.cols &&
                         /^[YBRWKPGS.]+$/.test(row) &&
-                        [...row].every(
-                            (color, c) =>
-                                (color === '.') ===
-                                (data.target[r][c] === '.')
-                        )
+                        LevelManager.holesMatch(row, data.target[r])
                 );
 
             if (!sameShape) {
