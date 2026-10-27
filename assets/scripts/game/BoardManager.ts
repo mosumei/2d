@@ -75,6 +75,7 @@ export class BoardManager extends Component {
         if (char === 'W') return 'white';
         if (char === 'P') return 'pink';
         if (char === 'G') return 'green';
+        if (char === 'S') return 'gray';
         throw new Error(`未知颜色 ${char}`);
     }
 
@@ -82,11 +83,12 @@ export class BoardManager extends Component {
         return {
             yellow: this.tileFrames.yellow ?? this.yellowGem ?? undefined,
             green: this.tileFrames.green,
+            gray: this.tileFrames.black,
             blue: this.tileFrames.blue ?? this.blueGem ?? undefined,
-            red: this.redGem ?? undefined,
+            red: this.redGem ?? this.tileFrames.black,
             black: this.tileFrames.black ?? this.blackGem ?? undefined,
-            white: this.whiteGem ?? undefined,
-            pink: this.pinkGem ?? undefined
+            white: this.whiteGem ?? this.tileFrames.black,
+            pink: this.pinkGem ?? this.tileFrames.black
         };
     }
 
@@ -131,6 +133,7 @@ export class BoardManager extends Component {
             (this.maxBoardHeight - (rows - 1) * gap) / rows
         );
         const step = cellSize + gap;
+        this.node.getComponent(UITransform)?.setContentSize(cols * step - gap, rows * step - gap);
         const frames = this.getGemFrames();
         const targetFrames: TargetFrames = {
             blue: this.blueTarget ?? this.targetFrames.blue,
@@ -232,6 +235,26 @@ export class BoardManager extends Component {
         return this.cells.find(
             cell => cell.row === row && cell.col === col
         );
+    }
+
+    public getTargetRegions(): GemCell[][] {
+        const remaining = new Set(this.cells);
+        const regions: GemCell[][] = [];
+        const byPosition = new Map(this.cells.map(cell => [`${cell.row}:${cell.col}`, cell]));
+        for (const seed of this.cells) {
+            if (!remaining.delete(seed)) continue;
+            const group = [seed];
+            for (let i = 0; i < group.length; i++) {
+                const cell = group[i];
+                for (const [r, c] of [[cell.row - 1, cell.col], [cell.row + 1, cell.col],
+                    [cell.row, cell.col - 1], [cell.row, cell.col + 1]]) {
+                    const next = byPosition.get(`${r}:${c}`);
+                    if (next && next.targetColor === seed.targetColor && remaining.delete(next)) group.push(next);
+                }
+            }
+            regions.push(group);
+        }
+        return regions;
     }
 
     public isCompleted(): boolean {

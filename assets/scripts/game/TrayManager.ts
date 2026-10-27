@@ -1,11 +1,13 @@
 
 import {
     _decorator, Component, Node, UITransform,
-    Graphics, Sprite, SpriteFrame, Color, Layers
+    Graphics, Sprite, SpriteFrame, Color, Layers,
+    Tween, tween, Vec3
 } from 'cc';
 
 import type { GemColor } from './GemCell';
 import { loadTileSet, TileFrames } from './TileSprites';
+import { drawBead, drawShelfSocket } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -59,13 +61,99 @@ public getFirstEmptySlot(): number {
     private readonly slotGap = 8;
     private readonly maxTrayWidth = 640;
 
-public resetTray(capacity: number) {
+public resetTray(capacity: number): Promise<void> {
     this.capacity = capacity;
-    loadTileSet().then((set) => {
+    return loadTileSet().then((set) => {
         this.tileFrames = set.tiles;
         this.createSlots();
     });
 }
+
+    /**
+     * 在已有棋子后面补空位。排满 12 个才新开一行，已有棋子留在原槽。
+     * @param count 这次要加的空位数
+     * @returns 新开行的高度。没有新开行时是 0，调用方不必上移托盘。
+     */
+    public addSlots(count: number): number {
+        if (!this.isValid || this.slots.length === 0 || count <= 0) return 0;
+
+        const columns = 12;
+        const step = this.slotSize;
+        let bottom = this.slots[0].position.y;
+        for (const slot of this.slots) {
+            if (slot.isValid && slot.position.y < bottom) bottom = slot.position.y;
+        }
+
+        let opened = 0;
+        for (let n = 0; n < count; n++) {
+            const index = this.capacity;
+            const column = index % columns;
+            let y = bottom;
+            if (column === 0) {
+                y = bottom - step;
+                bottom = y;
+                opened += 1;
+            }
+            const slot = new Node(`TraySlot_${index}`);
+            slot.layer = Layers.Enum.UI_2D;
+            slot.parent = this.node;
+            slot.addComponent(UITransform).setContentSize(this.slotSize, this.slotSize);
+            slot.setPosition((column - (columns - 1) / 2) * step, y, 0);
+            slot.addComponent(Graphics);
+            this.slots.push(slot);
+            this.gems.push(null);
+            this.capacity += 1;
+            slot.on(Node.EventType.TOUCH_END, () => this.onSlotClicked?.(index), this);
+            this.drawSlot(index);
+        }
+
+        this.resizeShelf();
+        return opened * step;
+    }
+
+    /**
+     * 按当前全部槽位重画托盘底板，新的一行伸在最下面。
+     */
+    private resizeShelf(): void {
+        const previous = this.node.getChildByName('Shelf');
+        if (previous?.isValid) previous.destroy();
+        if (this.slots.length === 0) return;
+
+        const half = this.slotSize / 2;
+        let minX = this.slots[0].position.x;
+        let maxX = minX;
+        let minY = this.slots[0].position.y;
+        let maxY = minY;
+        for (const slot of this.slots) {
+            if (!slot.isValid) continue;
+            minX = Math.min(minX, slot.position.x);
+            maxX = Math.max(maxX, slot.position.x);
+            minY = Math.min(minY, slot.position.y);
+            maxY = Math.max(maxY, slot.position.y);
+        }
+
+        const left = minX - half - 11;
+        const bottom = minY - half - 14;
+        const width = maxX - minX + this.slotSize + 22;
+        const height = maxY - minY + this.slotSize + 22;
+        const backing = new Node('Shelf');
+        backing.layer = Layers.Enum.UI_2D;
+        backing.parent = this.node;
+        backing.setSiblingIndex(0);
+        backing.addComponent(UITransform).setContentSize(width, height);
+        const bg = backing.addComponent(Graphics);
+        bg.fillColor = new Color(196, 157, 115, 255);
+        bg.roundRect(left, bottom, width, height, 14);
+        bg.fill();
+        bg.fillColor = new Color(255, 238, 212, 255);
+        bg.roundRect(left, bottom + 5, width, height, 14);
+        bg.fill();
+        bg.strokeColor = new Color(255, 253, 238, 255);
+        bg.lineWidth = 3;
+        bg.roundRect(left + 2, bottom + 7, width - 4, height - 4, 12);
+        bg.stroke();
+        this.node.getComponent(UITransform)?.setContentSize(width, height);
+    }
 
     private createSlots() {
         for (const child of [...this.node.children]) {
@@ -78,16 +166,25 @@ public resetTray(capacity: number) {
         this.liftedSlots = [];
 
         const count = Math.max(1, this.capacity);
-        let slotSize = 60;
-        let width = count * (slotSize + this.slotGap) - this.slotGap;
-        if (width > this.maxTrayWidth) {
-            slotSize = Math.floor((this.maxTrayWidth + this.slotGap) / count - this.slotGap);
-            slotSize = Math.max(36, slotSize);
-            width = count * (slotSize + this.slotGap) - this.slotGap;
-        }
-        this.slotSize = slotSize;
-        this.gemSize = Math.round(slotSize * 0.72);
-        const step = slotSize + this.slotGap;
+        const columns = Math.min(12, count);
+        const rows = Math.ceil(count / columns);
+        this.slotSize = Math.min(46, Math.floor((600 - 24) / columns));
+        this.gemSize = Math.round(this.slotSize * 0.79);
+        const step = this.slotSize;
+        const width = columns * step;
+        const height = rows * step;
+        this.node.getComponent(UITransform)?.setContentSize(width + 22, height + 22);
+        const backing = new Node('Shelf');
+        backing.layer = Layers.Enum.UI_2D;
+        backing.parent = this.node;
+        backing.addComponent(UITransform).setContentSize(width + 22, height + 22);
+        const bg = backing.addComponent(Graphics);
+        bg.fillColor = new Color(196, 157, 115, 255);
+        bg.roundRect(-width / 2 - 11, -height / 2 - 14, width + 22, height + 22, 14); bg.fill();
+        bg.fillColor = new Color(255, 238, 212, 255);
+        bg.roundRect(-width / 2 - 11, -height / 2 - 9, width + 22, height + 22, 14); bg.fill();
+        bg.strokeColor = new Color(255, 253, 238, 255); bg.lineWidth = 3;
+        bg.roundRect(-width / 2 - 9, -height / 2 - 7, width + 18, height + 18, 12); bg.stroke();
 
         for (let i = 0; i < this.capacity; i++) {
             const slot = new Node(`TraySlot_${i}`);
@@ -98,8 +195,8 @@ public resetTray(capacity: number) {
                 .setContentSize(this.slotSize, this.slotSize);
 
             slot.setPosition(
-                i * step - width / 2 + this.slotSize / 2,
-                0, 0
+                (i % columns - (columns - 1) / 2) * step,
+                ((rows - 1) / 2 - Math.floor(i / columns)) * step, 0
             );
 
             const graphics = slot.addComponent(Graphics);
@@ -122,28 +219,10 @@ public resetTray(capacity: number) {
         if (!graphics) return;
         graphics.clear();
 
-        const size = this.slotSize;
-        const selected = this.liftedSlots.indexOf(index) >= 0;
-
-        graphics.fillColor =
-            new Color(245, 249, 255, 245);
-        graphics.roundRect(
-            -size / 2, -size / 2,
-            size, size, 10
-        );
-        graphics.fill();
-
-        graphics.strokeColor = selected
-            ? new Color(255, 170, 25, 255)
-            : new Color(175, 195, 225, 255);
-
-        graphics.lineWidth = selected ? 4 : 2;
-        graphics.roundRect(
-            -size / 2 + 2, -size / 2 + 2,
-            size - 4, size - 4, 9
-        );
-        graphics.stroke();
+        drawShelfSocket(graphics, this.slotSize);
     }
+
+    public getGemSize(): number { return this.gemSize; }
 
     public setSelectedIndex(index: number) {
         this.setLiftedSlots(index >= 0 ? [index] : []);
@@ -175,11 +254,20 @@ public resetTray(capacity: number) {
 
     private applyLift(index: number) {
         const gem = this.slots[index]?.getChildByName('GemImage');
-        if (!gem) return;
+        if (!gem?.isValid) return;
         const lifted = this.liftedSlots.indexOf(index) >= 0;
-        gem.setPosition(0, lifted ? 16 : 0, 0);
+        const y = lifted ? this.slotSize * 0.28 : 0;
         const scale = lifted ? 1.08 : 1;
-        gem.setScale(scale, scale, 1);
+        if (Math.abs(gem.position.y - y) < 0.5 && Math.abs(gem.scale.x - scale) < 0.02) {
+            return;
+        }
+        Tween.stopAllByTarget(gem);
+        tween(gem)
+            .to(0.14, {
+                position: new Vec3(0, y, 0),
+                scale: new Vec3(scale, scale, 1)
+            }, { easing: 'quadOut' })
+            .start();
     }
 
     public getGemAt(index: number): GemColor | null {
@@ -208,10 +296,11 @@ public resetTray(capacity: number) {
         switch (color) {
             case 'yellow': return this.tileFrames.yellow ?? this.yellowGem;
             case 'blue': return this.tileFrames.blue ?? this.blueGem;
-            case 'red': return this.redGem;
+            case 'red': return this.redGem ?? this.tileFrames.black ?? null;
             case 'black': return this.tileFrames.black ?? this.blackGem;
-            case 'white': return this.whiteGem;
-            case 'pink': return this.pinkGem;
+            case 'white': return this.whiteGem ?? this.tileFrames.black ?? null;
+            case 'pink': return this.pinkGem ?? this.tileFrames.black ?? null;
+            case 'gray': return this.tileFrames.black ?? null;
             case 'green': return this.tileFrames.green ?? null;
             default: {
                 const unknown: never = color;
@@ -231,7 +320,11 @@ public resetTray(capacity: number) {
         if (!slot) return false;
 
         const oldGem = slot.getChildByName('GemImage');
-        oldGem?.destroy();
+        if (oldGem?.isValid) {
+            Tween.stopAllByTarget(oldGem);
+            oldGem.removeFromParent();
+            oldGem.destroy();
+        }
 
         this.gems[index] = color;
 
@@ -249,6 +342,7 @@ public resetTray(capacity: number) {
             ui.setContentSize(this.gemSize, this.gemSize);
             gem.setPosition(0, 0, 0);
             gem.setScale(1, 1, 1);
+            drawBead(gem, this.gemSize, color);
         }
 
         this.drawSlot(index);
@@ -259,17 +353,27 @@ public resetTray(capacity: number) {
     /**
      * 把还在托盘里的棋子按原来的顺序排到最左边，空槽留在右边。
      */
-    public compact(): void {
-        const colors: GemColor[] = [];
-        for (const color of this.gems) {
-            if (color) colors.push(color);
+    public compact(): Promise<void> {
+        const occupied: { color: GemColor; gem: Node; world: Vec3 }[] = [];
+        this.gems.forEach((color, index) => {
+            const gem = this.slots[index]?.getChildByName('GemImage');
+            if (color && gem) occupied.push({ color, gem, world: gem.worldPosition.clone() });
+        });
+        this.liftedSlots = [];
+        this.selectedIndex = -1;
+        this.gems.fill(null);
+        // Detach first so a moving bead cannot be mistaken for another slot's bead.
+        for (const item of occupied) item.gem.removeFromParent();
+        for (let index = 0; index < occupied.length; index++) {
+            const { color, gem, world } = occupied[index];
+            this.gems[index] = color;
+            const slot = this.slots[index];
+            gem.parent = slot;
+            gem.setPosition(slot.getComponent(UITransform)!.convertToNodeSpaceAR(world));
+            Tween.stopAllByTarget(gem);
+            tween(gem).to(0.16, { position: new Vec3(), scale: new Vec3(1, 1, 1) }, { easing: 'quadOut' }).start();
         }
-        for (let index = 0; index < this.gems.length; index++) {
-            const next = colors[index] ?? null;
-            if (this.gems[index] === next) continue;
-            this.setGemAt(index, next);
-        }
-        this.setLiftedSlots([]);
+        return new Promise(resolve => this.scheduleOnce(resolve, 0.17));
     }
 
     public addGem(color: GemColor): boolean {

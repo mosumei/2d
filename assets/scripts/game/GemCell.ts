@@ -7,8 +7,13 @@ import {
     Node,
     UITransform,
     Graphics,
-    Layers
+    Layers,
+    Tween,
+    tween,
+    Vec3
 } from 'cc';
+
+import { drawBead, drawSocket } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -20,7 +25,8 @@ export type GemColor =
     | 'black'
     | 'white'
     | 'pink'
-    | 'green';
+    | 'green'
+    | 'gray';
 
 // 玩家可以移动的立体方块
 export type GemFrames =
@@ -38,7 +44,8 @@ export const GEM_COLORS: Record<GemColor, Color> = {
     black: new Color(68, 68, 68, 255),
     white: new Color(255, 255, 255, 255),
     pink: new Color(255, 102, 187, 255),
-    green: new Color(46, 190, 72, 255)
+    green: new Color(46, 190, 72, 255),
+    gray: new Color(143, 147, 140, 255)
 };
 
 @ccclass('GemCell')
@@ -64,6 +71,7 @@ export class GemCell extends Component {
 
     private displaySize = 60;
     private outline: Graphics | null = null;
+    private picked = false;
 
     onLoad() {
         this.node.on(
@@ -170,6 +178,7 @@ export class GemCell extends Component {
             background
                 .getComponent(UITransform)
                 ?.setContentSize(size, size);
+            drawSocket(background.node, size, target);
         }
 
         // 2. 上层：当前可交换的立体方块
@@ -192,6 +201,7 @@ export class GemCell extends Component {
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);
+                drawBead(this.gemSprite.node, gemSize, current);
             }
         }
 
@@ -199,7 +209,7 @@ export class GemCell extends Component {
         if (this.targetMarker) {
             const empty = this.isEmpty();
 
-            this.targetMarker.node.active = empty;
+            this.targetMarker.node.active = false; // The recessed socket is the empty target hint.
 
             if (empty) {
                 this.targetMarker.sizeMode =
@@ -222,56 +232,102 @@ export class GemCell extends Component {
             }
         }
 
-        // 选择边框尺寸跟随格子尺寸更新
-        this.outline?.clear();
+        const gemNode = this.gemSprite?.node;
+        const resting = !this.picked || this.currentColor === null;
+        if (gemNode?.isValid && resting) {
+            Tween.stopAllByTarget(gemNode);
+            gemNode.setPosition(0, 0, 0);
+            gemNode.setScale(1, 1, 1);
+        }
+        const outlineNode = this.outline?.node;
+        if (outlineNode?.isValid && resting) {
+            Tween.stopAllByTarget(outlineNode);
+            outlineNode.setPosition(0, 0, 0);
+        }
+
+        this.paintSelection();
     }
 
     public setSelected(selected: boolean) {
-        if (!this.outline) {
-            const outlineNode =
-                new Node('SelectionOutline');
+        this.picked = selected;
+        if (selected && this.node.parent) {
+            this.node.setSiblingIndex(this.node.parent.children.length - 1);
+        }
+        this.paintSelection();
+        this.animatePick(selected);
+    }
 
+    /**
+     * 先去掉选中框。棋子先留在抬起的位置，等飞行动画读完坐标再归位。
+     */
+    public releaseOutline() {
+        this.picked = false;
+        this.paintSelection();
+    }
+
+    private paintSelection() {
+        if (!this.picked && !this.outline) return;
+
+        if (!this.outline) {
+            const outlineNode = new Node('SelectionOutline');
             outlineNode.layer = Layers.Enum.UI_2D;
             outlineNode.parent = this.node;
-
-            outlineNode
-                .addComponent(UITransform)
-                .setContentSize(
-                    this.displaySize,
-                    this.displaySize
-                );
-
-            this.outline =
-                outlineNode.addComponent(Graphics);
+            outlineNode.addComponent(UITransform);
+            this.outline = outlineNode.addComponent(Graphics);
         }
 
+        this.outline.getComponent(UITransform)
+            ?.setContentSize(this.displaySize, this.displaySize);
         this.outline.clear();
+        if (!this.picked) return;
 
-        if (!selected) return;
-
-        const half = this.displaySize / 2;
-        const inset = Math.min(
-            2,
-            this.displaySize * 0.06
-        );
-
-        this.outline.lineWidth = Math.max(
-            1.5,
-            this.displaySize * 0.06
-        );
-
-        this.outline.strokeColor =
-            new Color(255, 205, 55, 255);
-
+        const half = this.displaySize * 0.39;
+        const inset = Math.min(2, this.displaySize * 0.06);
+        this.outline.lineWidth = Math.max(0.7, this.displaySize * 0.025);
+        this.outline.strokeColor = new Color(255, 216, 146, 210);
         this.outline.roundRect(
             -half + inset,
             -half + inset,
-            this.displaySize - inset * 2,
-            this.displaySize - inset * 2,
+            half * 2 - inset * 2,
+            half * 2 - inset * 2,
             Math.max(2, this.displaySize * 0.1)
         );
-
         this.outline.stroke();
+    }
+
+    private animatePick(lifted: boolean) {
+        const gem = this.gemSprite?.node;
+        const outlineNode = this.outline?.node;
+        const distance = this.displaySize * 0.26;
+        const y = lifted ? distance : 0;
+        const scale = lifted ? 1.12 : 1;
+        const easing = lifted ? 'backOut' as const : 'quadOut' as const;
+
+        if (outlineNode?.isValid) {
+            Tween.stopAllByTarget(outlineNode);
+            if (!lifted && gem?.isValid && !gem.active) {
+                outlineNode.setPosition(0, 0, 0);
+            } else {
+                tween(outlineNode)
+                    .to(0.16, { position: new Vec3(0, y, 0) }, { easing })
+                    .start();
+            }
+        }
+
+        if (!gem?.isValid) return;
+        Tween.stopAllByTarget(gem);
+        if (!lifted && !gem.active) {
+            gem.setPosition(0, 0, 0);
+            gem.setScale(1, 1, 1);
+            return;
+        }
+
+        tween(gem)
+            .to(0.16, {
+                position: new Vec3(0, y, 0),
+                scale: new Vec3(scale, scale, 1)
+            }, { easing })
+            .start();
     }
 
     private handleClick() {
@@ -279,6 +335,10 @@ export class GemCell extends Component {
     }
 
     onDestroy() {
+        const gem = this.gemSprite?.node;
+        if (gem?.isValid) Tween.stopAllByTarget(gem);
+        const outlineNode = this.outline?.node;
+        if (outlineNode?.isValid) Tween.stopAllByTarget(outlineNode);
         this.node.off(
             Node.EventType.TOUCH_END,
             this.handleClick,

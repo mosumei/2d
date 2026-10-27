@@ -14,6 +14,7 @@ import {
     Layers
 } from 'cc';
 
+import { PREVIEW } from 'cc/env';
 import { localize } from '../core/Locale';
 import { MainMenuSettings } from './MainMenuSettings';
 
@@ -28,6 +29,12 @@ export class MainMenuUI extends Component {
     private isStarting = false;
 
     onLoad() {
+        if (PREVIEW && typeof location !== 'undefined' &&
+            /^[1-5]$/.test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
+            director.loadScene('Game');
+            return;
+        }
+
           console.log('✅ MainMenuUI.ts 已经运行！');
         if (!this.startButton) {
             console.error('StartButton 未绑定！');

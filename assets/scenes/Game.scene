@@ -325,9 +325,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 232,
-      "g": 220,
-      "b": 198,
+      "r": 242,
+      "g": 239,
+      "b": 255,
       "a": 255
     },
     "_spriteFrame": {
@@ -952,7 +952,7 @@
     "levelManager": {
       "__id__": 61
     },
-    "debugStartLevel": 1,
+    "debugStartLevel": 0,
     "audioManager": {
       "__id__": 63
     },

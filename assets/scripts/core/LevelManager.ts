@@ -274,13 +274,6 @@ export class LevelManager extends Component {
         this.saveProgress();
     }
 
-    /**
-     * 把已通关的星级和解锁再写进本机。不保存当前这一盘的棋子位置。
-     */
-    public flushProgress(): void {
-        this.saveProgress();
-    }
-
     public calculateStars(
         moves: number,
         thresholds?: StarThresholds
@@ -350,7 +343,7 @@ export class LevelManager extends Component {
             data.target.some(
                 row => typeof row !== 'string' ||
                     row.length !== data.cols ||
-                    !/^[YBRWKPG.]+$/.test(row)
+                    !/^[YBRWKPGS.]+$/.test(row)
             ) ||
             !Number.isInteger(data.trayCapacity) ||
             data.trayCapacity < 1 ||
@@ -410,7 +403,7 @@ export class LevelManager extends Component {
                 data.initial.every(
                     (row, r) =>
                         row.length === data.cols &&
-                        /^[YBRWKPG.]+$/.test(row) &&
+                        /^[YBRWKPGS.]+$/.test(row) &&
                         [...row].every(
                             (color, c) =>
                                 (color === '.') ===

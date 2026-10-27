@@ -412,7 +412,7 @@ export class MainMenuSettings {
         height: number,
         fontSize: number,
         color: Color,
-        align: Label.HorizontalAlign
+        align: Label['horizontalAlign']
     ): Label {
         const node = new Node('Label');
         node.layer = Layers.Enum.UI_2D;

@@ -14,10 +14,8 @@ import {
 import { BoardManager } from './BoardManager';
 import { GemCell } from './GemCell';
 
-const REGIONAL_SPAN = 1.05;
 const WAVE_SPAN = 0.75;
-const FINAL_SPAN = 0.26;
-const SUPERB_SPAN = 1.05;
+const SUPERB_SPAN = 1.50;
 
 /**
  * 拼图完成后的闪耀。只在棋子上加临时高光，不改棋盘颜色。
@@ -40,11 +38,11 @@ export class GemCompletionShine {
         const cells = board.getCells().filter(cell => cell.isValid && cell.currentColor !== null);
         try {
             if (cells.length === 0 || cancelled()) return;
-            await this.playRegionalSparkles(cells, cancelled);
+            await this.wait(0.16, cancelled);
             if (cancelled()) return;
             await this.playWaveShine(cells, cancelled);
             if (cancelled()) return;
-            await this.playFinalFlash(cells, cancelled);
+            await this.wait(0.24, cancelled);
             if (cancelled()) return;
             await this.playSuperb(canvas, board, cancelled);
         } finally {
@@ -52,35 +50,27 @@ export class GemCompletionShine {
         }
     }
 
-    private async playRegionalSparkles(cells: GemCell[], cancelled: () => boolean): Promise<void> {
-        const groups = this.groupNeighbors(cells);
-        const gap = Math.min(0.16, REGIONAL_SPAN / Math.max(1, groups.length));
-        const jobs = groups.map((group, index) =>
-            this.wait(index * gap, cancelled).then(() => {
-                if (cancelled()) return;
-                return Promise.all(group.map(cell => this.flash(cell, 220, 0.22, cancelled)));
-            })
-        );
-        await Promise.all(jobs);
+    /** A connected target-color region shines as soon as its last bead lands. */
+    public async playRegion(cells: GemCell[], cancelled: () => boolean): Promise<void> {
+        try {
+            await Promise.all(cells.map(cell => this.flash(cell, 240, 0.38, cancelled)));
+        } finally {
+            this.clearNodes();
+        }
     }
 
     private async playWaveShine(cells: GemCell[], cancelled: () => boolean): Promise<void> {
-        const orders = cells.map(cell => cell.row * 1.2 + cell.col + Math.random() * 0.85);
+        const orders = cells.map(cell => cell.row * 1.2 + cell.col);
         const min = Math.min(...orders);
         const span = Math.max(0.01, Math.max(...orders) - min);
         const jobs = cells.map((cell, index) => {
             const delay = ((orders[index] - min) / span) * WAVE_SPAN;
             return this.wait(delay, cancelled).then(() => {
                 if (cancelled()) return;
-                return this.flash(cell, 200, 0.2, cancelled);
+                return this.flash(cell, 245, 0.22, cancelled);
             });
         });
         await Promise.all(jobs);
-    }
-
-    private async playFinalFlash(cells: GemCell[], cancelled: () => boolean): Promise<void> {
-        if (cancelled()) return;
-        await Promise.all(cells.map(cell => this.flash(cell, 255, FINAL_SPAN, cancelled)));
     }
 
     private async playSuperb(
@@ -153,7 +143,7 @@ export class GemCompletionShine {
             new Color(112, 220, 120, 255),
             new Color(255, 255, 255, 255)
         ];
-        for (let index = 0; index < 28; index++) {
+        for (let index = 0; index < 60; index++) {
             const piece = new Node('Confetti');
             piece.layer = Layers.Enum.UI_2D;
             piece.parent = canvas;
@@ -167,19 +157,18 @@ export class GemCompletionShine {
             graphics.roundRect(-size / 2, -size * 0.28, size, size * 0.55, 2);
             graphics.fill();
             const opacity = piece.addComponent(UIOpacity);
-            const x = (Math.random() - 0.5) * 520;
-            const y = 180 + Math.random() * 280;
+            const x = (index % 2 === 0 ? -1 : 1) * (250 + Math.random() * 90);
+            const y = -500 + Math.random() * 60;
             piece.setPosition(x, y, 0);
             piece.setRotationFromEuler(0, 0, Math.random() * 180);
+            const apex = new Vec3((Math.random() - 0.5) * 560, -40 + Math.random() * 380, 0);
             tween(piece)
-                .to(0.9 + Math.random() * 0.35, {
-                    position: new Vec3(x + (Math.random() - 0.5) * 80, y - 520 - Math.random() * 160, 0)
-                }, { easing: 'sineIn' })
+                .delay((index % 5) * 0.025)
+                .to(0.35, { position: apex }, { easing: 'quadOut' })
+                .to(0.95, { position: new Vec3(apex.x + (Math.random() - 0.5) * 100, -620, 0),
+                    eulerAngles: new Vec3(0, 0, 270 + Math.random() * 360) }, { easing: 'quadIn' })
                 .start();
-            tween(opacity)
-                .delay(0.55)
-                .to(0.45, { opacity: 0 })
-                .start();
+            tween(opacity).delay(1.1).to(0.3, { opacity: 0 }).start();
         }
     }
 
@@ -190,7 +179,7 @@ export class GemCompletionShine {
         cancelled: () => boolean
     ): Promise<void> {
         if (cancelled() || !cell.isValid) return Promise.resolve();
-        const size = Math.max(12, cell.getDisplaySize() * 0.72);
+        const size = cell.getDisplaySize() * 0.72;
         const node = new Node('CompletionFlash');
         node.layer = Layers.Enum.UI_2D;
         node.parent = cell.node;
@@ -201,48 +190,27 @@ export class GemCompletionShine {
         this.drawSpark(graphics, size * 0.46);
         const opacity = node.addComponent(UIOpacity);
         opacity.opacity = 0;
-        return new Promise((resolve) => {
-            tween(opacity)
-                .to(duration * 0.38, { opacity: peak }, { easing: 'quadOut' })
-                .to(duration * 0.62, { opacity: 0 }, { easing: 'sineIn' })
-                .call(() => resolve())
-                .start();
-        });
+        tween(opacity)
+            .to(duration * 0.30, { opacity: peak }, { easing: 'quadOut' })
+            .to(duration * 0.70, { opacity: 0 }, { easing: 'sineIn' })
+            .start();
+        // Resolve even if a scene change destroys the tween target.
+        return this.wait(duration, cancelled);
     }
 
     private drawSpark(graphics: Graphics, radius: number) {
-        graphics.fillColor = new Color(255, 236, 190, 255);
-        graphics.circle(0, 0, radius * 0.62);
-        graphics.fill();
+        graphics.fillColor = new Color(255, 255, 255, 95);
+        graphics.circle(0, 0, radius * 0.88); graphics.fill();
         graphics.fillColor = new Color(255, 255, 255, 255);
-        graphics.moveTo(0, radius);
-        for (let point = 1; point <= 8; point++) {
-            const distance = point % 2 === 0 ? radius : radius * 0.34;
-            const angle = Math.PI / 2 + point * Math.PI / 4;
-            graphics.lineTo(Math.cos(angle) * distance, Math.sin(angle) * distance);
-        }
-        graphics.close();
-        graphics.fill();
-    }
-
-    private groupNeighbors(cells: GemCell[]): GemCell[][] {
-        const unused = [...cells];
-        const groups: GemCell[][] = [];
-        while (unused.length > 0) {
-            const seedIndex = Math.floor(Math.random() * unused.length);
-            const seed = unused.splice(seedIndex, 1)[0];
-            if (!seed) break;
-            const group = [seed];
-            for (let index = unused.length - 1; index >= 0 && group.length < 4; index--) {
-                const other = unused[index];
-                const distance = Math.abs(other.row - seed.row) + Math.abs(other.col - seed.col);
-                if (distance > 2) continue;
-                group.push(other);
-                unused.splice(index, 1);
-            }
-            groups.push(group);
-        }
-        return groups;
+        graphics.moveTo(-radius * 0.22, radius);
+        graphics.lineTo(radius * 0.04, radius * 0.22);
+        graphics.lineTo(radius * 0.82, 0);
+        graphics.lineTo(radius * 0.04, -radius * 0.18);
+        graphics.lineTo(-radius * 0.22, -radius * 0.88);
+        graphics.lineTo(-radius * 0.40, -radius * 0.18);
+        graphics.lineTo(-radius, 0);
+        graphics.lineTo(-radius * 0.40, radius * 0.22);
+        graphics.close(); graphics.fill();
     }
 
     private wait(seconds: number, cancelled: () => boolean): Promise<void> {
