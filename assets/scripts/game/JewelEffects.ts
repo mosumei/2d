@@ -235,7 +235,7 @@ export class JewelEffects extends Component {
                 const gemNode = new Node('Gem');
                 gemNode.layer = Layers.Enum.UI_2D;
                 gemNode.parent = tile;
-                const gemSize = cell.size * 0.5;
+                const gemSize = cell.size * 0.72;
                 gemNode.addComponent(UITransform).setContentSize(gemSize, gemSize);
                 const gem = gemNode.addComponent(Sprite);
                 gem.sizeMode = Sprite.SizeMode.CUSTOM;

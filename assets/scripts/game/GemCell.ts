@@ -188,7 +188,7 @@ export class GemCell extends Component {
 
                 this.gemSprite.color = Color.WHITE;
 
-                const gemSize = size * 0.5;
+                const gemSize = size * 0.72;
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);

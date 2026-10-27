@@ -28,6 +28,7 @@ import { HintEffect } from './HintEffect';
 import { MagnetManager } from './MagnetManager';
 import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
+import { GemCompletionShine } from './GemCompletionShine';
 
 const { ccclass, property } = _decorator;
 
@@ -432,7 +433,7 @@ onLoad() {
         if (this.isAnimating || this.magnetRunning) return;
         if (this.finished) return;
 
-        if (this.tutorialRunning && !this.tutorial?.allowBoard(cell)) return;
+        if (this.tutorialRunning && !this.tutorial?.allowBoard(cell, this.boardManager)) return;
 
         if (this.wandMode) {
             this.useWand(cell);
@@ -653,11 +654,13 @@ onLoad() {
             from: source.node,
             to: dest.node,
             startSize: 46,
-            endSize: 46
-        }], () => {
-            source.setCurrentColor(null);
-            dest.setCurrentColor(color);
-        }, [source, dest]);
+            endSize: 46,
+            onArrive: () => {
+                source.setCurrentColor(null);
+                dest.setCurrentColor(color);
+                this.settleLandedGem(dest);
+            }
+        }], [source, dest]);
         return dest.isCorrect() ? 1 : 0;
     }
 
@@ -676,19 +679,24 @@ onLoad() {
                 from: source.node,
                 to: dest.node,
                 startSize: 46,
-                endSize: 46
+                endSize: 46,
+                onArrive: () => {
+                    dest.setCurrentColor(colorA);
+                    this.settleLandedGem(dest);
+                }
             },
             {
                 frame: frameB,
                 from: dest.node,
                 to: source.node,
                 startSize: 46,
-                endSize: 46
+                endSize: 46,
+                onArrive: () => {
+                    source.setCurrentColor(colorB);
+                    this.settleLandedGem(source);
+                }
             }
-        ], () => {
-            source.setCurrentColor(colorB);
-            dest.setCurrentColor(colorA);
-        }, [source, dest]);
+        ], [source, dest]);
         return (source.isCorrect() ? 1 : 0) + (dest.isCorrect() ? 1 : 0);
     }
 
@@ -707,11 +715,14 @@ onLoad() {
             from: slotNode,
             to: dest.node,
             startSize: 44,
-            endSize: 46
-        }], () => {
-            tray.setGemAt(slot, null);
-            dest.setCurrentColor(color);
-        }, [dest]);
+            endSize: 46,
+            onArrive: () => {
+                tray.setGemAt(slot, null);
+                dest.setCurrentColor(color);
+                this.settleLandedGem(dest);
+            }
+        }], [dest]);
+        tray.compact();
         return dest.isCorrect() ? 1 : 0;
     }
 
@@ -1028,6 +1039,7 @@ onLoad() {
                 for (const [index, color] of nextTray) {
                     tray.setGemAt(index, color);
                 }
+                tray.compact();
             }
         };
     }
@@ -1168,7 +1180,7 @@ onLoad() {
 
     private wandGemSize(source: WandSource): number {
         switch (source.kind) {
-            case 'cell': return Math.round(source.cell.getDisplaySize() * 0.5);
+            case 'cell': return Math.round(source.cell.getDisplaySize() * 0.72);
             case 'tray': return 44;
             default: {
                 const unknown: never = source;
@@ -1275,9 +1287,9 @@ onLoad() {
         if (batch.length === 0) return false;
 
         this.hintEffect?.clearHint();
-        this.audioManager?.playTray();
 
         if (!this.moveAnimator) {
+            this.audioManager?.playTray();
             for (const item of batch) {
                 if (tray.setGemAt(item.slot, item.color)) {
                     item.cell.setCurrentColor(null);
@@ -1307,16 +1319,16 @@ onLoad() {
                 to: slotNode,
                 startSize: Math.round(item.cell.getDisplaySize() * 0.72),
                 endSize: 44,
-                delay: index * 0.04
+                delay: index * 0.05,
+                onArrive: () => {
+                    tray.setGemAt(item.slot, item.color);
+                    item.cell.setCurrentColor(null);
+                    this.audioManager?.playTray();
+                }
             });
         });
 
         this.moveAnimator.play(moves, () => {
-            for (const item of batch) {
-                tray.setGemAt(item.slot, item.color);
-                item.cell.setCurrentColor(null);
-            }
-
             this.isAnimating = false;
             this.countMove();
             this.noteTutorialProgress();
@@ -1452,27 +1464,29 @@ onLoad() {
             dest: destinations[index]
         }));
         const moves: GemMove[] = [];
-        for (const pair of pairs) {
+        for (let index = 0; index < pairs.length; index++) {
+            const pair = pairs[index];
             const frameA = pair.source.gemSprite?.spriteFrame;
-            if (!frameA) return;
+            const sourceColor = pair.source.currentColor;
+            if (!frameA || !sourceColor) return;
             moves.push({
                 frame: frameA,
                 from: pair.source.node,
                 to: pair.dest.node,
                 startSize: 46,
-                endSize: 46
+                endSize: 46,
+                delay: index * 0.05,
+                onArrive: () => {
+                    pair.source.setCurrentColor(null);
+                    pair.dest.setCurrentColor(sourceColor);
+                    this.settleLandedGem(pair.dest);
+                }
             });
         }
 
         this.hideMovedGems(pairs.map(pair => pair.source));
         const changed = pairs.flatMap(pair => [pair.source, pair.dest]);
-        this.runMoves(moves, () => {
-            for (const pair of pairs) {
-                const sourceColor = pair.source.currentColor;
-                pair.source.setCurrentColor(null);
-                pair.dest.setCurrentColor(sourceColor);
-            }
-        }, changed);
+        this.runMoves(moves, changed);
     }
 
     // 两组棋子正好占着对方的颜色格时，对调到各自的格子。
@@ -1497,37 +1511,43 @@ onLoad() {
             dest: destinations[index]
         }));
         const moves: GemMove[] = [];
-        for (const pair of pairs) {
+        for (let index = 0; index < pairs.length; index++) {
+            const pair = pairs[index];
             const frameA = pair.source.gemSprite?.spriteFrame;
             const frameB = pair.dest.gemSprite?.spriteFrame;
-            if (!frameA || !frameB) return false;
+            const sourceColor = pair.source.currentColor;
+            const destColor = pair.dest.currentColor;
+            if (!frameA || !frameB || !sourceColor || !destColor) return false;
             moves.push({
                 frame: frameA,
                 from: pair.source.node,
                 to: pair.dest.node,
                 startSize: 46,
-                endSize: 46
+                endSize: 46,
+                delay: index * 0.05,
+                onArrive: () => {
+                    pair.dest.setCurrentColor(sourceColor);
+                    this.settleLandedGem(pair.dest);
+                }
             });
             moves.push({
                 frame: frameB,
                 from: pair.dest.node,
                 to: pair.source.node,
                 startSize: 46,
-                endSize: 46
+                endSize: 46,
+                delay: index * 0.05,
+                onArrive: () => {
+                    pair.source.setCurrentColor(destColor);
+                    this.settleLandedGem(pair.source);
+                }
             });
         }
 
         this.hideMovedGems(pairs.map(pair => pair.source));
         this.hideMovedGems(pairs.map(pair => pair.dest));
         const changed = pairs.flatMap(pair => [pair.source, pair.dest]);
-        this.runMoves(moves, () => {
-            for (const pair of pairs) {
-                const sourceColor = pair.source.currentColor;
-                const destColor = pair.dest.currentColor;
-                pair.source.setCurrentColor(destColor);
-                pair.dest.setCurrentColor(sourceColor);
-            }
-        }, changed);
+        this.runMoves(moves, changed);
         return true;
     }
 
@@ -1560,7 +1580,8 @@ onLoad() {
             dest: destinations[slotIndex]
         }));
         const moves: GemMove[] = [];
-        for (const pair of pairs) {
+        for (let index = 0; index < pairs.length; index++) {
+            const pair = pairs[index];
             const slotNode = tray.getSlotNode(pair.slot);
             const sourceGem = slotNode?.getChildByName('GemImage');
             const sourceFrame = sourceGem?.getComponent(Sprite)?.spriteFrame;
@@ -1570,7 +1591,13 @@ onLoad() {
                 from: slotNode,
                 to: pair.dest.node,
                 startSize: 44,
-                endSize: 46
+                endSize: 46,
+                delay: index * 0.05,
+                onArrive: () => {
+                    tray.setGemAt(pair.slot, null);
+                    pair.dest.setCurrentColor(color);
+                    this.settleLandedGem(pair.dest);
+                }
             });
         }
 
@@ -1580,12 +1607,10 @@ onLoad() {
                 if (sourceGem) sourceGem.active = false;
             }
         }
-        this.runMoves(moves, () => {
-            for (const pair of pairs) {
-                tray.setGemAt(pair.slot, null);
-                pair.dest.setCurrentColor(color);
-            }
-        }, pairs.map(pair => pair.dest));
+        this.runMoves(moves, pairs.map(pair => pair.dest)).then(() => {
+            if (!this.isValid) return;
+            tray.compact();
+        });
     }
 
     private hideMovedGems(cells: GemCell[]) {
@@ -1597,18 +1622,22 @@ onLoad() {
         }
     }
 
+    /**
+     * 一颗棋子落稳后的闪光和音效。振动仍按整次操作只响一次。
+     */
+    private settleLandedGem(cell: GemCell) {
+        this.notifyGemSettled([cell]);
+        this.playPlacementSound(cell.isCorrect(), false);
+    }
+
     private runMoves(
         moves: GemMove[],
-        commit: () => void,
         changed: GemCell[]
     ): Promise<void> {
         return new Promise((resolve) => {
             const finish = () => {
-                commit();
                 this.isAnimating = false;
-                this.notifyGemSettled(changed);
                 const matched = changed.some(cell => cell.isCorrect());
-                this.playPlacementSound(matched, false);
                 this.countMove();
                 this.noteTutorialProgress();
                 this.vibrateAfterMove(matched);
@@ -1618,6 +1647,7 @@ onLoad() {
             this.hintEffect?.clearHint();
             this.clearSelection();
             if (!this.moveAnimator || moves.length === 0) {
+                for (const move of moves) move.onArrive?.();
                 finish();
                 return;
             }
@@ -1638,7 +1668,7 @@ onLoad() {
             !this.trayManager
         ) return;
 
-        if (this.tutorialRunning && !this.tutorial?.allowTray(index)) return;
+        if (this.tutorialRunning && !this.tutorial?.allowTray(index, this.trayManager)) return;
 
         if (this.wandMode) {
             this.setWandMode(false);
@@ -2006,17 +2036,36 @@ onLoad() {
             }
         };
 
-        const board = this.boardManager?.node;
+        const board = this.boardManager;
+        const boardNode = board?.node ?? null;
         const artifact = this.artifactReveal;
-        if (!this.effects || !board || !artifact) {
-            showPanel();
-            return;
-        }
+        const cancelled = () => !this.isValid || token !== this.finishToken;
+        void this.playCompletionShine(board, cancelled).then(() => {
+            if (cancelled()) return;
+            if (!this.effects || !boardNode || !artifact) {
+                showPanel();
+                return;
+            }
+            this.effects.playRestoration(boardNode, artifact, showPanel);
+        });
+    }
 
-        this.scheduleOnce(() => {
-            if (!this.isValid || token !== this.finishToken) return;
-            this.effects?.playRestoration(board, artifact, showPanel);
-        }, 0.45);
+    /**
+     * 完成闪耀期间锁住操作。关卡被切走时中途停下。
+     * @param board 当前棋盘
+     * @param cancelled 是否应该停止演出
+     */
+    private async playCompletionShine(
+        board: BoardManager | null,
+        cancelled: () => boolean
+    ): Promise<void> {
+        if (!board) return;
+        this.isAnimating = true;
+        try {
+            await new GemCompletionShine().play(board, this.node.parent, cancelled);
+        } finally {
+            if (this.isValid) this.isAnimating = false;
+        }
     }
 
     onDestroy() {

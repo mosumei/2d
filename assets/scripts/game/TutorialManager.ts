@@ -91,17 +91,21 @@ export class TutorialManager {
     }
 
     /**
-     * 当前步是否允许点这格。
+     * 当前步是否允许点这格。点中手套所指那一片相连区域即可。
      * @param cell 被点的格子
+     * @param board 棋盘
      */
-    public allowBoard(cell: GemCell): boolean {
+    public allowBoard(cell: GemCell, board: BoardManager | null): boolean {
         const step = this.current();
         if (!step || step.blocking === false) return true;
+        const origin = this.cellAt(board, step.cell);
+        if (!origin || !board) return false;
         switch (step.action) {
             case 'select':
+                return this.connectedMovable(board, origin).indexOf(cell) >= 0;
             case 'place':
             case 'placeFromTray':
-                return this.sameCell(cell, step.cell);
+                return this.connectedEmpty(board, origin).indexOf(cell) >= 0;
             case 'tray':
             case 'lift':
                 return false;
@@ -114,16 +118,21 @@ export class TutorialManager {
     }
 
     /**
-     * 当前步是否允许点这个托盘槽。
+     * 当前步是否允许点这个托盘槽。托盘区域内的槽都算。
      * @param index 槽编号
+     * @param tray 托盘
      */
-    public allowTray(index: number): boolean {
+    public allowTray(index: number, tray: TrayManager | null = null): boolean {
         const step = this.current();
         if (!step || step.blocking === false) return true;
         switch (step.action) {
             case 'tray':
-            case 'lift':
-                return index === step.slot;
+                return !!tray?.getSlotNode(index);
+            case 'lift': {
+                if (!tray || step.slot === undefined) return false;
+                const color = tray.getGemAt(step.slot);
+                return color !== null && tray.getGemAt(index) === color;
+            }
             case 'select':
             case 'place':
             case 'placeFromTray':
@@ -194,14 +203,20 @@ export class TutorialManager {
             return !!cell && cell.isCorrect();
         }
         switch (step.action) {
-            case 'select':
-                return !!selected &&
-                    selected.type === 'board' &&
-                    this.samePoint(selected.row, selected.col, step.cell);
-            case 'lift':
-                return !!selected &&
-                    selected.type === 'tray' &&
-                    selected.slot === step.slot;
+            case 'select': {
+                if (!selected || selected.type !== 'board' || !board) return false;
+                const origin = this.cellAt(board, step.cell);
+                const chosen = board.getCell(selected.row, selected.col);
+                if (!origin || !chosen) return false;
+                return this.connectedMovable(board, origin).indexOf(chosen) >= 0;
+            }
+            case 'lift': {
+                if (!selected || selected.type !== 'tray' || !tray || step.slot === undefined) {
+                    return false;
+                }
+                const color = tray.getGemAt(step.slot);
+                return color !== null && tray.getGemAt(selected.slot) === color;
+            }
             case 'tray':
                 return step.slot !== undefined &&
                     !!tray &&
@@ -314,16 +329,53 @@ export class TutorialManager {
         return board.getCell(cell[0], cell[1]) ?? null;
     }
 
-    private sameCell(cell: GemCell, point: [number, number] | undefined): boolean {
-        return this.samePoint(cell.row, cell.col, point);
+    /**
+     * 和起点上下左右连在一起、同色且还能移动的棋子。
+     */
+    private connectedMovable(board: BoardManager, origin: GemCell): GemCell[] {
+        const color = origin.currentColor;
+        if (!color || !origin.canMove()) return [];
+        return this.flood(board, origin, (cell) =>
+            cell.canMove() && cell.currentColor === color
+        );
     }
 
-    private samePoint(
-        row: number,
-        col: number,
-        point: [number, number] | undefined
-    ): boolean {
-        return !!point && point[0] === row && point[1] === col;
+    /**
+     * 和起点连在一起、目标色相同的空格。
+     */
+    private connectedEmpty(board: BoardManager, origin: GemCell): GemCell[] {
+        const color = origin.targetColor;
+        if (!color || origin.currentColor !== null) return [];
+        return this.flood(board, origin, (cell) =>
+            cell.currentColor === null && cell.targetColor === color
+        );
+    }
+
+    private flood(
+        board: BoardManager,
+        origin: GemCell,
+        accept: (cell: GemCell) => boolean
+    ): GemCell[] {
+        const group: GemCell[] = [];
+        const seen = new Set<GemCell>();
+        const pending: GemCell[] = [origin];
+        while (pending.length > 0) {
+            const cell = pending.pop();
+            if (!cell || seen.has(cell)) continue;
+            seen.add(cell);
+            if (!accept(cell)) continue;
+            group.push(cell);
+            const neighbors = [
+                board.getCell(cell.row - 1, cell.col),
+                board.getCell(cell.row + 1, cell.col),
+                board.getCell(cell.row, cell.col - 1),
+                board.getCell(cell.row, cell.col + 1)
+            ];
+            for (const neighbor of neighbors) {
+                if (neighbor) pending.push(neighbor);
+            }
+        }
+        return group;
     }
 }
 

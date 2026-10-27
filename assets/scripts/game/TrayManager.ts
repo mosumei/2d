@@ -252,6 +252,22 @@ public resetTray(capacity: number) {
         return true;
     }
 
+    /**
+     * 把还在托盘里的棋子按原来的顺序排到最左边，空槽留在右边。
+     */
+    public compact(): void {
+        const colors: GemColor[] = [];
+        for (const color of this.gems) {
+            if (color) colors.push(color);
+        }
+        for (let index = 0; index < this.gems.length; index++) {
+            const next = colors[index] ?? null;
+            if (this.gems[index] === next) continue;
+            this.setGemAt(index, next);
+        }
+        this.setLiftedSlots([]);
+    }
+
     public addGem(color: GemColor): boolean {
         const index = this.firstEmptyIndex();
         if (index < 0) return false;
