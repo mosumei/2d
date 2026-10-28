@@ -292,6 +292,67 @@ public resetTray(capacity: number): Promise<void> {
         return indices;
     }
 
+    /**
+     * 把托盘里同一颜色收成一段，并在这段后面留出空位。
+     * 其他颜色保持原来的先后，只向右让开。
+     * @param color 这次放进来的颜色
+     * @param count 要留出的空位数
+     * @returns 新棋子应落入的槽编号。空位不够时原样不动并返回空数组。
+     */
+    public reserveSameColorSlots(color: GemColor, count: number): number[] {
+        if (count <= 0) return [];
+
+        const packed: { color: GemColor; gem: Node; world: Vec3 }[] = [];
+        for (let index = 0; index < this.gems.length; index++) {
+            const gemColor = this.gems[index];
+            const gem = this.slots[index]?.getChildByName('GemImage');
+            if (!gemColor || !gem?.isValid) continue;
+            packed.push({ color: gemColor, gem, world: gem.worldPosition.clone() });
+        }
+        if (packed.length + count > this.slots.length) return [];
+
+        const first = packed.findIndex(item => item.color === color);
+        const before: typeof packed = [];
+        const same: typeof packed = [];
+        const after: typeof packed = [];
+        for (let index = 0; index < packed.length; index++) {
+            const item = packed[index];
+            if (item.color === color) {
+                same.push(item);
+            } else if (first < 0 || index < first) {
+                before.push(item);
+            } else {
+                after.push(item);
+            }
+        }
+
+        const incomingStart = before.length + same.length;
+        const placements = [
+            ...before.map((item, index) => ({ ...item, index })),
+            ...same.map((item, index) => ({ ...item, index: before.length + index })),
+            ...after.map((item, index) => ({ ...item, index: incomingStart + count + index }))
+        ];
+
+        this.setLiftedSlots([]);
+        this.gems.fill(null);
+        for (const item of placements) item.gem.removeFromParent();
+        for (const item of placements) {
+            this.gems[item.index] = item.color;
+            const slot = this.slots[item.index];
+            item.gem.parent = slot;
+            const local = slot.getComponent(UITransform)!.convertToNodeSpaceAR(item.world);
+            item.gem.setPosition(local);
+            Tween.stopAllByTarget(item.gem);
+            tween(item.gem)
+                .to(0.16, { position: new Vec3(), scale: new Vec3(1, 1, 1) }, { easing: 'quadOut' })
+                .start();
+        }
+
+        const reserved: number[] = [];
+        for (let index = 0; index < count; index++) reserved.push(incomingStart + index);
+        return reserved;
+    }
+
     private getFrame(color: GemColor): SpriteFrame | null {
         switch (color) {
             case 'yellow': return this.tileFrames.yellow ?? this.yellowGem;

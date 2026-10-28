@@ -13,6 +13,7 @@ import {
     Vec3
 } from 'cc';
 
+import { BoardGesture } from './BoardGesture';
 import { drawBead, drawSocket } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
@@ -331,6 +332,7 @@ export class GemCell extends Component {
     }
 
     private handleClick() {
+        if (BoardGesture.swallowTap) return;
         this.onPressed?.(this);
     }
 

@@ -17,6 +17,8 @@ export class ToolsBarUI extends Component {
     public onWandClick: (() => void) | null = null;
     public onHintClick: (() => void) | null = null;
     public onMagnetClick: (() => void) | null = null;
+    public onSettingsClick: (() => void) | null = null;
+    private rankLabel: Label | null = null;
 
     onLoad() {
         this.build();
@@ -28,47 +30,34 @@ export class ToolsBarUI extends Component {
 
         this.node.layer = Layers.Enum.UI_2D;
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
-        root.setContentSize(480, 120);
+        root.setContentSize(640, 140);
 
-        this.makeTool('MagicWandButton', -150, localize('魔法棒', 'Wand'), 'ui/tools/tool_magic_wand');
-        this.makeTool('HintButton', 0, localize('放大镜', 'Hint'), 'ui/tools/tool_magnifier');
-        this.makeTool('MagnetButton', 150, localize('磁铁', 'Magnet'), 'ui/tools/tool_magnet');
+        this.makeTool('MagnetButton', -222, 'ui/game/btn_magnet');
+        this.makeTool('MagicWandButton', -74, 'ui/game/btn_wand');
+        this.makeTool('HintButton', 74, 'ui/game/btn_hint');
+        this.makeSettings(222);
     }
 
-    private makeTool(
-        name: string,
-        x: number,
-        title: string,
-        imagePath: string,
-        lockLevel?: number
-    ) {
+    private makeTool(name: string, x: number, imagePath: string) {
         const buttonNode = new Node(name);
         buttonNode.layer = Layers.Enum.UI_2D;
         buttonNode.parent = this.node;
-        buttonNode.setPosition(x, 6, 0);
-        buttonNode.addComponent(UITransform).setContentSize(88, 88);
+        buttonNode.setPosition(x, 0, 0);
+        buttonNode.addComponent(UITransform).setContentSize(118, 121);
 
         const icon = new Node('Icon');
         icon.layer = Layers.Enum.UI_2D;
         icon.parent = buttonNode;
-        icon.setPosition(0, 8, 0);
-        icon.addComponent(UITransform).setContentSize(64, 64);
+        icon.addComponent(UITransform).setContentSize(118, 121);
         const sprite = icon.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        sprite.color = lockLevel === undefined
-            ? Color.WHITE
-            : new Color(170, 170, 170, 255);
         resources.load(imagePath + '/spriteFrame', SpriteFrame, (err, frame) => {
-            if (err || !frame || !isValid(icon)) return;
-            sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+            if (err || !frame || !isValid(icon)) {
+                if (err) console.error(`[Game] 加载 ${imagePath}/spriteFrame 失败`, err);
+                return;
+            }
             sprite.spriteFrame = frame;
-            icon.getComponent(UITransform)?.setContentSize(64, 64);
         });
-
-        const nameLabel = this.makeText('NameLabel', title, 16, new Color(72, 52, 36, 255));
-        nameLabel.node.parent = buttonNode;
-        nameLabel.node.setPosition(0, -38, 0);
-        nameLabel.node.getComponent(UITransform)?.setContentSize(92, 22);
 
         if (name === 'MagicWandButton') {
             this.wandButton = buttonNode;
@@ -93,30 +82,56 @@ export class ToolsBarUI extends Component {
             }, this);
         }
 
-        if (lockLevel !== undefined) {
-            const overlay = new Node('LockOverlay');
-            overlay.layer = Layers.Enum.UI_2D;
-            overlay.parent = buttonNode;
-            overlay.setPosition(0, 8, 0);
-            overlay.addComponent(UITransform).setContentSize(64, 64);
-            const overlayGraphics = overlay.addComponent(Graphics);
-            overlayGraphics.fillColor = new Color(48, 52, 60, 150);
-            overlayGraphics.roundRect(-32, -32, 64, 64, 14);
-            overlayGraphics.fill();
-            const lockLabel = this.makeText(
-                'LockLabel',
-                `LEVEL ${lockLevel}`,
-                13,
-                Color.WHITE
-            );
-            lockLabel.node.parent = overlay;
-            lockLabel.node.getComponent(UITransform)?.setContentSize(64, 36);
-        }
+        const button = buttonNode.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.05;
+    }
+
+    private makeSettings(x: number) {
+        const buttonNode = new Node('SettingsButton');
+        buttonNode.layer = Layers.Enum.UI_2D;
+        buttonNode.parent = this.node;
+        buttonNode.setPosition(x, 0, 0);
+        buttonNode.addComponent(UITransform).setContentSize(118, 121);
+
+        const icon = new Node('Icon');
+        icon.layer = Layers.Enum.UI_2D;
+        icon.parent = buttonNode;
+        icon.addComponent(UITransform).setContentSize(118, 121);
+        const sprite = icon.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        resources.load('ui/game/btn_settings/spriteFrame', SpriteFrame, (err, frame) => {
+            if (err || !frame || !isValid(icon)) {
+                if (err) console.error('[Game] 加载 ui/game/btn_settings/spriteFrame 失败', err);
+                return;
+            }
+            sprite.spriteFrame = frame;
+        });
+
+        const rank = this.makeText('RankLabel', '', 18, Color.WHITE);
+        rank.isBold = true;
+        rank.enableOutline = true;
+        rank.outlineColor = new Color(70, 90, 170, 255);
+        rank.outlineWidth = 2;
+        rank.node.parent = buttonNode;
+        rank.node.setPosition(0, -40, 0);
+        rank.node.getComponent(UITransform)?.setContentSize(100, 28);
+        this.rankLabel = rank;
 
         const button = buttonNode.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.05;
-        button.interactable = lockLevel === undefined;
+        buttonNode.on(Button.EventType.CLICK, () => {
+            this.onSettingsClick?.();
+        }, this);
+    }
+
+    /**
+     * 齿轮按钮上的等级文字。
+     * @param text 已本地化的等级文案
+     */
+    public setRankLabel(text: string) {
+        if (this.rankLabel) this.rankLabel.string = text;
     }
 
     private makeText(name: string, text: string, fontSize: number, color: Color): Label {
@@ -140,7 +155,7 @@ export class ToolsBarUI extends Component {
         const node = new Node('WatchAdBadge');
         node.layer = Layers.Enum.UI_2D;
         node.parent = parent;
-        node.setPosition(0, 58, 0);
+        node.setPosition(0, 74, 0);
         node.active = false;
         const transform = node.addComponent(UITransform);
         transform.setContentSize(96, 28);
@@ -166,12 +181,12 @@ export class ToolsBarUI extends Component {
         const icon = this.magnetButton?.getChildByName('Icon');
         if (!icon) return;
         Tween.stopAllByTarget(icon);
-        icon.setPosition(0, 8, 0);
+        icon.setPosition(0, 0, 0);
         tween(icon)
             .repeatForever(
                 tween(icon)
-                    .to(0.08, { position: new Vec3(6, 8, 0) })
-                    .to(0.08, { position: new Vec3(-6, 8, 0) })
+                    .to(0.08, { position: new Vec3(6, 0, 0) })
+                    .to(0.08, { position: new Vec3(-6, 0, 0) })
             )
             .start();
     }
@@ -183,7 +198,7 @@ export class ToolsBarUI extends Component {
         const icon = this.magnetButton?.getChildByName('Icon');
         if (!icon?.isValid) return;
         Tween.stopAllByTarget(icon);
-        icon.setPosition(0, 8, 0);
+        icon.setPosition(0, 0, 0);
     }
 
     public setWandArmed(armed: boolean) {

@@ -6,6 +6,7 @@ import {
 } from 'cc';
 
 import { PREVIEW } from 'cc/env';
+import { BoardGesture } from './BoardGesture';
 import { BoardManager } from './BoardManager';
 import { TrayManager } from './TrayManager';
 import { GemCell, GemColor } from './GemCell';
@@ -17,7 +18,6 @@ import { LevelSession } from '../core/LevelSession';
 import { ArtifactCollectionManager, ARTIFACTS } from '../core/ArtifactCollectionManager';
 import { ArtifactCollectionUI } from '../ui/ArtifactCollectionUI';
 import { ToolsBarUI } from '../ui/ToolsBarUI';
-import { SettingsButton } from '../ui/SettingsButton';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { VibrationManager } from '../core/VibrationManager';
 import {
@@ -81,6 +81,8 @@ export class GameManager extends Component {
     private moveCount = 0;
     private wandMode = false;
     private toolsBar: ToolsBarUI | null = null;
+    private settingsPanel: SettingsPanel | null = null;
+    private boardGesture: BoardGesture | null = null;
     private toolsNode: Node | null = null;
     private hintEffect: HintEffect | null = null;
     private magnetManager: MagnetManager | null = null;
@@ -255,7 +257,7 @@ onLoad() {
     }
 
     /**
-     * 左上角「设置」入口。用代码创建，避免写进场景后被编辑器保存清掉。
+     * 绑定局内设置面板。齿轮按钮在底部道具栏里。
      */
     private ensureSettingsEntry() {
         const canvas = this.node.parent;
@@ -271,6 +273,7 @@ onLoad() {
         }
         if (panel) {
             const settings = panel;
+            this.settingsPanel = settings;
             settings.node.active = false;
             settings.onSave = () => {
                 this.levelManager?.flushProgress();
@@ -286,57 +289,32 @@ onLoad() {
             };
         }
 
-        if (canvas.getChildByName('SettingsEntry')) return;
+    }
 
-        const node = new Node('SettingsEntry');
-        node.layer = Layers.Enum.UI_2D;
-        node.parent = canvas;
-        node.setPosition(-264, 588, 0);
-        node.addComponent(UITransform).setContentSize(120, 52);
+    /**
+     * 用游戏页背景替换场景里原来的底图。
+     */
+    private ensureGameBackground() {
+        const background = this.node.parent?.getChildByName('Background');
+        if (!background) return;
+        const sprite = background.getComponent(Sprite) ?? background.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        background.getComponent(UITransform)?.setContentSize(720, 1280);
+        resources.load('ui/game/bg_game/spriteFrame', SpriteFrame, (error, frame) => {
+            if (error || !frame || !isValid(background)) {
+                if (error) console.error('[Game] 加载 ui/game/bg_game/spriteFrame 失败', error);
+                return;
+            }
+            sprite.spriteFrame = frame;
+        });
+    }
 
-        const graphics = node.addComponent(Graphics);
-        graphics.fillColor = new Color(120, 78, 36, 80);
-        graphics.roundRect(-58, -30, 120, 52, 18);
-        graphics.fill();
-        graphics.fillColor = new Color(255, 246, 226, 255);
-        graphics.roundRect(-60, -26, 120, 52, 18);
-        graphics.fill();
-        graphics.strokeColor = new Color(196, 142, 64, 255);
-        graphics.lineWidth = 3;
-        graphics.roundRect(-60, -26, 120, 52, 18);
-        graphics.stroke();
-
-        const labelNode = new Node('ButtonLabel');
-        labelNode.layer = Layers.Enum.UI_2D;
-        labelNode.parent = node;
-        labelNode.addComponent(UITransform).setContentSize(96, 36);
-        const label = labelNode.addComponent(Label);
-        label.useSystemFont = true;
-        label.fontFamily = 'PingFang SC';
-        label.string = localize('设置', 'Settings');
-        label.overflow = Label.Overflow.SHRINK;
-        label.fontSize = 22;
-        label.lineHeight = 28;
-        label.isBold = true;
-        label.color = new Color(92, 58, 32, 255);
-        label.horizontalAlign = Label.HorizontalAlign.CENTER;
-        label.verticalAlign = Label.VerticalAlign.CENTER;
-
-        const opener = node.addComponent(SettingsButton);
-        opener.settingsPanel = panel;
-
-        const button = node.addComponent(Button);
-        button.transition = Button.Transition.SCALE;
-        button.zoomScale = 1.06;
-        node.on(Button.EventType.CLICK, () => {
-            panel?.node.setSiblingIndex(canvas.children.length - 1);
-            opener.openSettings();
-        }, this);
-
-        const complete = canvas.getChildByName('CompletePanel');
-        if (complete) {
-            node.setSiblingIndex(complete.getSiblingIndex());
-        }
+    /**
+     * 齿轮按钮显示存档里的等级，和主页开始按钮一致。
+     */
+    private refreshRankLabel() {
+        const level = LevelSession.getProgress().lastPlayedLevel;
+        this.toolsBar?.setRankLabel(localize(`等级 ${level}`, `Level ${level}`));
     }
 
     /**
@@ -378,10 +356,22 @@ onLoad() {
         }
         if (this.levelLabel) {
             this.levelLabel.node.active = true;
+            this.levelLabel.color = new Color(255, 186, 46, 255);
+            this.levelLabel.enableOutline = true;
+            this.levelLabel.outlineColor = new Color(176, 96, 18, 255);
+            this.levelLabel.outlineWidth = 4;
+            this.levelLabel.isBold = true;
         }
+
+        this.ensureGameBackground();
 
         // Leave a clear gap above the multi-row shelf, even for tall pixel art.
         this.boardManager?.node.setPosition(0, 100, 0);
+        const boardNode = this.boardManager?.node;
+        if (boardNode) {
+            this.boardGesture = boardNode.getComponent(BoardGesture) ?? boardNode.addComponent(BoardGesture);
+            this.boardGesture.rememberRest();
+        }
         this.trayManager?.node.setPosition(0, -370, 0);
         const tools = this.node.parent?.getChildByName('ToolsContainer');
         if (tools) {
@@ -394,6 +384,13 @@ onLoad() {
             bar.onWandClick = () => this.toggleWand();
             bar.onHintClick = () => this.useHint();
             bar.onMagnetClick = () => this.useMagnet();
+            bar.onSettingsClick = () => {
+                const settings = this.settingsPanel;
+                if (!settings) return;
+                settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
+                settings.openPanel();
+            };
+            this.refreshRankLabel();
         }
         this.ensureHintEffect();
         this.ensureMagnetManager();
@@ -1363,7 +1360,7 @@ onLoad() {
         return group;
     }
 
-    // 选中的同色棋子放进空槽。空槽不够时，先拿走点中的那颗，其余留在原位。
+    // 选中的同色棋子落到托盘里同色的后面。空槽不够时，先拿走点中的那颗，其余留在原位。
     private takeSameColorToTray(origin: GemCell): boolean {
         const tray = this.trayManager;
         const color = origin.currentColor;
@@ -1371,19 +1368,25 @@ onLoad() {
             return false;
         }
 
-        const slots = tray.getEmptyIndices();
+        const room = tray.getEmptyIndices().length;
         const cells = this.selectedGroup.length > 0
             ? [...this.selectedGroup]
             : this.getSameColorMovableCells(origin);
 
+        const batchCells: GemCell[] = [];
+        for (const cell of cells) {
+            if (batchCells.length >= room) break;
+            if (!cell.currentColor || !cell.gemSprite?.spriteFrame) continue;
+            batchCells.push(cell);
+        }
+        const reserved = batchCells.length > 0
+            ? tray.reserveSameColorSlots(color, batchCells.length)
+            : [];
         const batch: { cell: GemCell; color: GemColor; slot: number }[] = [];
-        for (let i = 0; i < cells.length && batch.length < slots.length; i++) {
-            const cell = cells[i];
-            const gemColor = cell.currentColor;
-            const frame = cell.gemSprite?.spriteFrame;
-            const slot = slots[batch.length];
-            if (!gemColor || !frame || !tray.getSlotNode(slot)) continue;
-            batch.push({ cell, color: gemColor, slot });
+        for (let index = 0; index < batchCells.length && index < reserved.length; index++) {
+            const slot = reserved[index];
+            if (!tray.getSlotNode(slot)) continue;
+            batch.push({ cell: batchCells[index], color, slot });
         }
 
         if (batch.length === 0) {
@@ -1821,6 +1824,7 @@ onLoad() {
                 this.levelManager?.setLastPlayedLevel(data.id);
             }
 
+            this.boardGesture?.resetView();
             this.trayManager!.node.setPosition(0, -370, 0);
             const trayReady = this.trayManager!.resetTray(12 * 3);
             const steps = readTutorialSteps(data.tutorialSteps);
@@ -1863,6 +1867,7 @@ onLoad() {
             if (this.levelLabel) {
                 this.levelLabel.string = `LEVEL ${data.id}`;
             }
+            this.refreshRankLabel();
             this.toolsBar?.setWatchAdBadge(data.id > 2);
 
             console.log(
