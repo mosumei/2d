@@ -19,14 +19,11 @@ import {
 const { ccclass, property } = _decorator;
 
 /**
- * 四套程序动画。光圈、星光和粒子预制体可以后补；
- * 没绑定时仍播放弹跳、闪烁、淡入和金色光晕。
+ * 四套程序动画。星光和粒子预制体可以后补；
+ * 没绑定时仍播放弹跳、闪烁和淡入。
  */
 @ccclass('JewelEffects')
 export class JewelEffects extends Component {
-
-    @property(Prefab)
-    glowPrefab: Prefab | null = null;
 
     @property(Prefab)
     sparkPrefab: Prefab | null = null;
@@ -55,7 +52,6 @@ export class JewelEffects extends Component {
             .start();
 
         this.flashGemSprite(gem);
-        this.spawnGlow(gem);
         this.spawnSparks(gem);
     }
 
@@ -235,8 +231,7 @@ export class JewelEffects extends Component {
                 const gemNode = new Node('Gem');
                 gemNode.layer = Layers.Enum.UI_2D;
                 gemNode.parent = tile;
-                const gemSize = cell.size * 0.72;
-                gemNode.addComponent(UITransform).setContentSize(gemSize, gemSize);
+                gemNode.addComponent(UITransform).setContentSize(cell.size * 48 / 60, cell.size * 48 / 60);
                 const gem = gemNode.addComponent(Sprite);
                 gem.sizeMode = Sprite.SizeMode.CUSTOM;
                 gem.spriteFrame = cell.gem;
@@ -301,39 +296,6 @@ export class JewelEffects extends Component {
         tween(sprite)
             .to(0.1, { color: new Color(255, 244, 180, 255) })
             .to(0.24, { color: new Color(255, 255, 255, 255) })
-            .start();
-    }
-
-    private spawnGlow(gem: Node): void {
-        if (this.glowPrefab) {
-            this.attachPrefab(this.glowPrefab, gem, 'PlaceGlow', 0.4);
-            return;
-        }
-
-        gem.getChildByName('PlaceGlow')?.destroy();
-        const size = gem.getComponent(UITransform)?.contentSize.width ?? 60;
-        const ring = new Node('PlaceGlow');
-        ring.layer = gem.layer;
-        ring.parent = gem;
-        ring.addComponent(UITransform).setContentSize(size, size);
-
-        const graphics = ring.addComponent(Graphics);
-        graphics.lineWidth = Math.max(2, size * 0.06);
-        graphics.strokeColor = new Color(255, 214, 96, 230);
-        graphics.circle(0, 0, size * 0.38);
-        graphics.stroke();
-
-        const opacity = ring.addComponent(UIOpacity);
-        opacity.opacity = 230;
-        ring.setScale(0.55, 0.55, 1);
-        tween(ring)
-            .to(0.32, { scale: new Vec3(1.4, 1.4, 1) }, { easing: 'sineOut' })
-            .start();
-        tween(opacity)
-            .to(0.32, { opacity: 0 })
-            .call(() => {
-                if (ring.isValid) ring.destroy();
-            })
             .start();
     }
 

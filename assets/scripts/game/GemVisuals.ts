@@ -1,8 +1,8 @@
 import { Color, Graphics, Layers, Node, Sprite, UITransform } from 'cc';
 import type { GemColor } from './GemCell';
 
-// Vector geometry keeps the same bead and socket on the board, in flight and
-// on the shelf, including colors that have no imported texture yet.
+// Yellow, blue, red, black, green and pink use the imported spheres.
+// White and gray stay vector beads because the new set has no matching art.
 export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
     yellow: [246, 187, 48], blue: [57, 109, 220], red: [242, 91, 70],
     black: [65, 80, 91], white: [224, 216, 196], pink: [245, 139, 179],
@@ -14,6 +14,15 @@ let activePalette: Record<GemColor, [number, number, number]> = { ...BEAD_COLORS
 /** Reset on EVERY level load so chart-specific colors never leak into other levels. */
 export function configureGemPalette(palette?: GemPalette): void {
     activePalette = { ...BEAD_COLORS, ...(palette ?? {}) };
+}
+
+const ILLUSTRATED: ReadonlySet<GemColor> = new Set([
+    'yellow', 'blue', 'red', 'black', 'green', 'pink'
+]);
+
+/** True when this color should show the imported sphere instead of a vector bead. */
+export function usesIllustratedGem(color: GemColor): boolean {
+    return ILLUSTRATED.has(color);
 }
 
 const beadColors = new WeakMap<Node, GemColor>();
@@ -52,7 +61,14 @@ function polygon(g: Graphics, points: [number, number][], color: Color): void {
 export function drawBead(node: Node, size: number, color: GemColor): void {
     beadColors.set(node, color);
     const sprite = node.getComponent(Sprite);
+    const drawn = node.getChildByName('BeadVisual');
+    if (usesIllustratedGem(color) && sprite?.spriteFrame) {
+        sprite.enabled = true;
+        if (drawn) drawn.active = false;
+        return;
+    }
     if (sprite) sprite.enabled = false;
+    if (drawn) drawn.active = true;
     const g = visual(node, 'BeadVisual', size);
     const rgb = activePalette[color], r = size * 0.48;
     polygon(g, octagon(0, -r * 0.08, r * 1.03), shade(rgb, -0.52));
@@ -68,7 +84,14 @@ export function drawBead(node: Node, size: number, color: GemColor): void {
 }
 export function drawSocket(node: Node, size: number, color: GemColor): void {
     const sprite = node.getComponent(Sprite);
+    const drawn = node.getChildByName('SocketVisual');
+    if (usesIllustratedGem(color) && sprite?.spriteFrame) {
+        sprite.enabled = true;
+        if (drawn) drawn.active = false;
+        return;
+    }
     if (sprite) sprite.enabled = false;
+    if (drawn) drawn.active = true;
     const g = visual(node, 'SocketVisual', size);
     const rgb = activePalette[color], half = size / 2;
     g.fillColor = shade(rgb, -0.47);

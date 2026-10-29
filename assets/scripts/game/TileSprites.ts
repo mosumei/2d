@@ -32,30 +32,38 @@ export function loadTileSet(): Promise<TileSet> {
 
     if (!loading) {
         loading = Promise.all([
-            loadFrame('gems/tile_blue/spriteFrame'),
-            loadFrame('gems/tile_gray/spriteFrame'),
-            loadFrame('gems/tile_yellow/spriteFrame'),
-            loadFrame('gems/tile_green/spriteFrame'),
-            loadFrame('gems/tile_blue_target/spriteFrame'),
-            loadFrame('gems/tile_gray_target/spriteFrame'),
-            loadFrame('gems/tile_yellow_target/spriteFrame'),
-            loadFrame('gems/tile_green_target/spriteFrame')
+            loadFrame('gems/gem_blue/spriteFrame'),
+            loadFrame('gems/gem_black/spriteFrame'),
+            loadFrame('gems/gem_yellow/spriteFrame'),
+            loadFrame('gems/gem_green/spriteFrame'),
+            loadFrame('gems/gem_red/spriteFrame'),
+            loadFrame('gems/gem_pink/spriteFrame'),
+            loadFrame('gems/socket_blue/spriteFrame'),
+            loadFrame('gems/socket_black/spriteFrame'),
+            loadFrame('gems/socket_yellow/spriteFrame'),
+            loadFrame('gems/socket_green/spriteFrame'),
+            loadFrame('gems/socket_red/spriteFrame'),
+            loadFrame('gems/socket_pink/spriteFrame')
         ]).then(([
-            blue, gray, yellow, green,
-            blueTarget, grayTarget, yellowTarget, greenTarget
+            blue, black, yellow, green, red, pink,
+            blueTarget, blackTarget, yellowTarget, greenTarget, redTarget, pinkTarget
         ]) => {
             cached = {
                 tiles: {
                     blue: blue ?? undefined,
-                    black: gray ?? undefined,
+                    black: black ?? undefined,
                     yellow: yellow ?? undefined,
-                    green: green ?? undefined
+                    green: green ?? undefined,
+                    red: red ?? undefined,
+                    pink: pink ?? undefined
                 },
                 targets: {
                     blue: blueTarget ?? undefined,
-                    black: grayTarget ?? undefined,
+                    black: blackTarget ?? undefined,
                     yellow: yellowTarget ?? undefined,
-                    green: greenTarget ?? undefined
+                    green: greenTarget ?? undefined,
+                    red: redTarget ?? undefined,
+                    pink: pinkTarget ?? undefined
                 }
             };
             return cached;

@@ -1,0 +1,43 @@
+{
+  "name": "Jewel Crush",
+  "platform": "wechatgame",
+  "buildPath": "project://build",
+  "outputName": "wechatgame",
+  "debug": false,
+  "mangleProperties": true,
+  "inlineEnum": true,
+  "md5Cache": false,
+  "sourceMaps": false,
+  "mainBundleCompressionType": "merge_dep",
+  "startScene": "f63db9f1-e620-42e7-bcd5-ca8c3d99f35e",
+  "scenes": [
+    {
+      "url": "db://assets/scenes/MainMenu.scene",
+      "uuid": "8e2b75d5-3ae8-4bdb-914c-3aa2b748e5bc"
+    },
+    {
+      "url": "db://assets/scenes/Game.scene",
+      "uuid": "f63db9f1-e620-42e7-bcd5-ca8c3d99f35e"
+    }
+  ],
+  "bundleConfigs": [
+    {
+      "root": "db://assets/resources",
+      "name": "resources",
+      "priority": 8,
+      "compressionType": "subpackage",
+      "isRemote": false
+    }
+  ],
+  "packages": {
+    "wechatgame": {
+      "orientation": "portrait",
+      "appid": "wx4a2e86d40126e6e4",
+      "buildOpenDataContextTemplate": "",
+      "separateEngine": true,
+      "highPerformanceMode": false,
+      "__version__": "1.0.4",
+      "wasmSubpackage": true
+    }
+  }
+}

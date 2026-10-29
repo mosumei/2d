@@ -1,0 +1,8 @@
+{
+  "name": "jewel-wechat-pack",
+  "version": "1.0.0",
+  "package_version": 2,
+  "title": "微信资源分包与包体检查",
+  "description": "保留原始素材，微信构建完成后添加分包加载进度、失败重试和主包体积检查。",
+  "contributions": { "builder": "./builder.js" }
+}

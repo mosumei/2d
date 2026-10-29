@@ -169,7 +169,7 @@ public resetTray(capacity: number): Promise<void> {
         const columns = Math.min(12, count);
         const rows = Math.ceil(count / columns);
         this.slotSize = Math.min(46, Math.floor((600 - 24) / columns));
-        this.gemSize = Math.round(this.slotSize * 0.79);
+        this.gemSize = Math.round(this.slotSize * 48 / 60);
         const step = this.slotSize;
         const width = columns * step;
         const height = rows * step;
@@ -357,11 +357,11 @@ public resetTray(capacity: number): Promise<void> {
         switch (color) {
             case 'yellow': return this.tileFrames.yellow ?? this.yellowGem;
             case 'blue': return this.tileFrames.blue ?? this.blueGem;
-            case 'red': return this.redGem ?? this.tileFrames.black ?? null;
+            case 'red': return this.tileFrames.red ?? this.redGem ?? null;
             case 'black': return this.tileFrames.black ?? this.blackGem;
             case 'white': return this.whiteGem ?? this.tileFrames.black ?? null;
-            case 'pink': return this.pinkGem ?? this.tileFrames.black ?? null;
-            case 'gray': return this.tileFrames.black ?? null;
+            case 'pink': return this.tileFrames.pink ?? this.pinkGem ?? null;
+            case 'gray': return this.tileFrames.black ?? this.blackGem ?? null;
             case 'green': return this.tileFrames.green ?? null;
             default: {
                 const unknown: never = color;

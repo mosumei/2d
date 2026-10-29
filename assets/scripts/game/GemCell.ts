@@ -14,7 +14,7 @@ import {
 } from 'cc';
 
 import { BoardGesture } from './BoardGesture';
-import { drawBead, drawSocket } from './GemVisuals';
+import { drawBead, drawSocket, usesIllustratedGem } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -198,7 +198,9 @@ export class GemCell extends Component {
 
                 this.gemSprite.color = Color.WHITE;
 
-                const gemSize = size * 0.72;
+                const gemSize = usesIllustratedGem(current) && this.frames[current]
+                    ? size * 48 / 60
+                    : size * 0.72;
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);

@@ -82,13 +82,13 @@ export class BoardManager extends Component {
     private getGemFrames(): GemFrames {
         return {
             yellow: this.tileFrames.yellow ?? this.yellowGem ?? undefined,
-            green: this.tileFrames.green,
-            gray: this.tileFrames.black,
             blue: this.tileFrames.blue ?? this.blueGem ?? undefined,
-            red: this.redGem ?? this.tileFrames.black,
+            red: this.tileFrames.red ?? this.redGem ?? undefined,
             black: this.tileFrames.black ?? this.blackGem ?? undefined,
-            white: this.whiteGem ?? this.tileFrames.black,
-            pink: this.pinkGem ?? this.tileFrames.black
+            green: this.tileFrames.green,
+            pink: this.tileFrames.pink ?? this.pinkGem ?? undefined,
+            white: this.whiteGem ?? undefined,
+            gray: undefined
         };
     }
 
@@ -136,10 +136,12 @@ export class BoardManager extends Component {
         this.node.getComponent(UITransform)?.setContentSize(cols * step - gap, rows * step - gap);
         const frames = this.getGemFrames();
         const targetFrames: TargetFrames = {
-            blue: this.blueTarget ?? this.targetFrames.blue,
-            black: this.blackTarget ?? this.targetFrames.black,
             yellow: this.targetFrames.yellow,
-            green: this.targetFrames.green
+            blue: this.targetFrames.blue ?? this.blueTarget ?? undefined,
+            red: this.targetFrames.red,
+            black: this.targetFrames.black ?? this.blackTarget ?? undefined,
+            green: this.targetFrames.green,
+            pink: this.targetFrames.pink
         };
 
         for (let row = 0; row < rows; row++) {
