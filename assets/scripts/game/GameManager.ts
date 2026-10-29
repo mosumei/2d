@@ -310,6 +310,49 @@ onLoad() {
     }
 
     /**
+     * 测试用。点一下进入下一关，第 6 关之后回到第 1 关。
+     */
+    private ensureSkipButton() {
+        const canvas = this.node.parent;
+        if (!canvas || canvas.getChildByName('SkipLevelButton')) return;
+
+        const node = new Node('SkipLevelButton');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = canvas;
+        node.setPosition(250, 470, 0);
+        node.addComponent(UITransform).setContentSize(128, 48);
+
+        const graphics = node.addComponent(Graphics);
+        graphics.fillColor = new Color(255, 186, 46, 255);
+        graphics.roundRect(-64, -24, 128, 48, 16);
+        graphics.fill();
+
+        const labelNode = new Node('Label');
+        labelNode.layer = Layers.Enum.UI_2D;
+        labelNode.parent = node;
+        labelNode.addComponent(UITransform).setContentSize(112, 36);
+        const label = labelNode.addComponent(Label);
+        label.useSystemFont = true;
+        label.fontFamily = 'PingFang SC';
+        label.string = '下一关';
+        label.fontSize = 22;
+        label.lineHeight = 28;
+        label.isBold = true;
+        label.color = new Color(92, 58, 32, 255);
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, () => {
+            const current = this.levelManager?.getCurrentLevel() ?? 1;
+            const next = current >= 6 ? 1 : current + 1;
+            this.openLevel(next, true);
+        }, this);
+    }
+
+    /**
      * 齿轮按钮显示存档里的等级，和主页开始按钮一致。
      */
     private refreshRankLabel() {
@@ -338,7 +381,7 @@ onLoad() {
             let previewLevel = 1;
             if (typeof location !== 'undefined') {
                 const requested = Number(new URLSearchParams(location.search).get('preview-level'));
-                if (Number.isInteger(requested) && requested >= 1 && requested <= 5) {
+                if (Number.isInteger(requested) && requested >= 1 && requested <= 6) {
                     previewLevel = requested;
                 }
             }
@@ -364,6 +407,7 @@ onLoad() {
         }
 
         this.ensureGameBackground();
+        this.ensureSkipButton();
 
         // Leave a clear gap above the multi-row shelf, even for tall pixel art.
         this.boardManager?.node.setPosition(0, 100, 0);
@@ -1772,7 +1816,7 @@ onLoad() {
 
     // ===== 关卡切换 =====
 
-    private openLevel(level: number) {
+    private openLevel(level: number, ignoreUnlock = false) {
         if (
             !this.levelManager ||
             !this.boardManager ||
@@ -1787,6 +1831,7 @@ onLoad() {
 
         if (
             !debugMode &&
+            !ignoreUnlock &&
             level > this.levelManager.getHighestUnlockedLevel()
         ) {
             console.warn(
@@ -1918,6 +1963,7 @@ onLoad() {
         if (!this.finished || !this.levelManager) return;
 
         const next = this.levelManager.getCurrentLevel() + 1;
+        if (next > 6) return;
         this.openLevel(next);
     }
 

@@ -29,7 +29,7 @@ export class LevelSelectUI extends Component {
 
     // 当前实际制作的关卡数量
     @property
-    totalLevels = 8;
+    totalLevels = 6;
 
     // 每行多少个按钮
     @property
@@ -40,6 +40,7 @@ export class LevelSelectUI extends Component {
     private readonly stepY = 155;
 
     onLoad() {
+        this.totalLevels = 6;
         this.backButton?.node.on(
             Button.EventType.CLICK,
             this.goBack,
