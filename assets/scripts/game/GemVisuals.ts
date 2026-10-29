@@ -8,6 +8,14 @@ export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
     black: [65, 80, 91], white: [224, 216, 196], pink: [245, 139, 179],
     green: [67, 190, 137], gray: [143, 147, 140]
 };
+export type GemPalette = Partial<Record<GemColor, [number, number, number]>>;
+let activePalette: Record<GemColor, [number, number, number]> = { ...BEAD_COLORS };
+
+/** Reset on EVERY level load so chart-specific colors never leak into other levels. */
+export function configureGemPalette(palette?: GemPalette): void {
+    activePalette = { ...BEAD_COLORS, ...(palette ?? {}) };
+}
+
 const beadColors = new WeakMap<Node, GemColor>();
 export function readBeadColor(node: Node): GemColor | undefined {
     return beadColors.get(node);
@@ -46,7 +54,7 @@ export function drawBead(node: Node, size: number, color: GemColor): void {
     const sprite = node.getComponent(Sprite);
     if (sprite) sprite.enabled = false;
     const g = visual(node, 'BeadVisual', size);
-    const rgb = BEAD_COLORS[color], r = size * 0.48;
+    const rgb = activePalette[color], r = size * 0.48;
     polygon(g, octagon(0, -r * 0.08, r * 1.03), shade(rgb, -0.52));
     const outer = octagon(0, 0, r);
     const inner = octagon(0, r * 0.09, r * 0.68);
@@ -62,7 +70,7 @@ export function drawSocket(node: Node, size: number, color: GemColor): void {
     const sprite = node.getComponent(Sprite);
     if (sprite) sprite.enabled = false;
     const g = visual(node, 'SocketVisual', size);
-    const rgb = BEAD_COLORS[color], half = size / 2;
+    const rgb = activePalette[color], half = size / 2;
     g.fillColor = shade(rgb, -0.47);
     g.rect(-half, -half, size, size); g.fill();
     g.fillColor = shade(rgb, -0.11);

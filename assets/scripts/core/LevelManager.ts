@@ -7,6 +7,8 @@ import {
     sys
 } from 'cc';
 
+import type { GemPalette } from '../game/GemVisuals';
+
 const { ccclass } = _decorator;
 
 export interface StarThresholds {
@@ -20,6 +22,7 @@ export interface LevelData {
     rows: number;
     cols: number;
     trayCapacity: number;
+    palette?: GemPalette;
     target: string[];
     initial?: string[];
     shapeMask?: number[][];
@@ -369,6 +372,18 @@ export class LevelManager extends Component {
                 data
             );
             return false;
+        }
+
+        if (data.palette !== undefined) {
+            const names = ['yellow', 'blue', 'red', 'black', 'white', 'pink', 'green', 'gray'];
+            if (!data.palette || typeof data.palette !== 'object' || Array.isArray(data.palette) ||
+                Object.keys(data.palette).some(name => names.indexOf(name) < 0 ||
+                    !Array.isArray(data.palette[name]) || data.palette[name].length !== 3 ||
+                    data.palette[name].some((value: unknown) => typeof value !== 'number' ||
+                        !Number.isInteger(value) || value < 0 || value > 255))) {
+                console.error('[LevelManager] 关卡配色必须是有效的 RGB 数组');
+                return false;
+            }
         }
 
         for (const swap of data.initialSwaps) {

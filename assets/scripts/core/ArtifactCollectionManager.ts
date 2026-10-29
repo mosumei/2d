@@ -7,7 +7,7 @@ export interface CollectedArtifact {
 
 // 路径不带 resources/ 和后缀；后续关卡在这里增加配置。
 export const ARTIFACTS: Record<number, { name: string; nameEn: string; image: string }> = {
-    6: { name: '蓝灰之心', nameEn: 'Blue-Gray Heart', image: 'artifacts/level_01_vase' }
+    6: { name: '花卉长颈瓶', nameEn: 'Floral Long-Neck Vase', image: 'artifacts/level_06_flower_vase' }
 };
 
 export class ArtifactCollectionManager {

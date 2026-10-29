@@ -365,7 +365,8 @@ export class GemMoveAnimator extends Component {
             start: layer.convertToNodeSpaceAR(gem.worldPosition),
             end: layer.convertToNodeSpaceAR(move.to.worldPosition),
             size,
-            endSize: Math.max(1, move.endSize ?? size),
+            endSize: Math.max(1, move.endSize === undefined ? size : move.endSize *
+                Math.abs(move.to.worldScale.x / Math.max(0.0001, this.node.worldScale.x))),
             color: readBeadColor(gem)
         };
     }

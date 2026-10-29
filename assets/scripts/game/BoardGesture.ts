@@ -1,58 +1,64 @@
 import {
-    _decorator,
-    Component,
-    EventTouch,
-    Node,
-    UITransform,
-    Vec2,
-    Vec3
+    _decorator, Component, EventMouse, EventTouch, Node, UITransform, Vec2, Vec3
 } from 'cc';
 
 const { ccclass } = _decorator;
 
-/**
- * 只缩放、拖动拼图节点。托盘和道具不在这个节点上。
- */
+/** Only the board moves. The fixed viewport owns input and clips its children. */
 @ccclass('BoardGesture')
 export class BoardGesture extends Component {
-    /** 这次手势已经在拖或捏，格子上的点击要丢掉。 */
     public static swallowTap = false;
+    public canInteract: (() => boolean) | null = null;
 
     private readonly minScale = 1;
-    private readonly maxScale = 3;
+    private readonly maxScale = 5;
     private readonly tapSlop = 18;
-
+    private viewport: Node | null = null;
     private rest = new Vec3(0, 100, 0);
     private origin = new Vec2();
+    private lastPoint = new Vec2();
+    private readonly touchIds = new Set<number>();
     private tracking = false;
     private pinchDistance = 0;
     private pinchScale = 1;
+    private pinchCenter = new Vec3();
 
-    onEnable() {
-        this.node.on(Node.EventType.TOUCH_START, this.onStart, this);
-        this.node.on(Node.EventType.TOUCH_MOVE, this.onMove, this);
-        this.node.on(Node.EventType.TOUCH_END, this.onEnd, this);
-        this.node.on(Node.EventType.TOUCH_CANCEL, this.onEnd, this);
+    onEnable(): void { this.bind(this.viewport ?? this.node, true); }
+    onDisable(): void {
+        this.bind(this.viewport ?? this.node, false);
+        this.touchIds.clear();
+        this.tracking = false;
+        this.pinchDistance = 0;
     }
 
-    onDisable() {
-        this.node.off(Node.EventType.TOUCH_START, this.onStart, this);
-        this.node.off(Node.EventType.TOUCH_MOVE, this.onMove, this);
-        this.node.off(Node.EventType.TOUCH_END, this.onEnd, this);
-        this.node.off(Node.EventType.TOUCH_CANCEL, this.onEnd, this);
+    public setViewport(viewport: Node): void {
+        if (this.viewport === viewport) return;
+        if (this.enabledInHierarchy) this.bind(this.viewport ?? this.node, false);
+        this.viewport = viewport;
+        if (this.enabledInHierarchy) this.bind(viewport, true);
     }
 
-    /**
-     * 记下当前摆放，作为缩回到 1 倍时的位置。
-     */
-    public rememberRest(): void {
-        this.rest.set(this.node.position);
+    private bind(node: Node, listen: boolean): void {
+        // Capture before GemCell handles touch-end, so a pinch never places gems.
+        if (listen) {
+            node.on(Node.EventType.TOUCH_START, this.onStart, this, true);
+            node.on(Node.EventType.TOUCH_MOVE, this.onMove, this, true);
+            node.on(Node.EventType.TOUCH_END, this.onEnd, this, true);
+            node.on(Node.EventType.TOUCH_CANCEL, this.onEnd, this, true);
+            node.on(Node.EventType.MOUSE_WHEEL, this.onWheel, this, true);
+        } else {
+            node.off(Node.EventType.TOUCH_START, this.onStart, this, true);
+            node.off(Node.EventType.TOUCH_MOVE, this.onMove, this, true);
+            node.off(Node.EventType.TOUCH_END, this.onEnd, this, true);
+            node.off(Node.EventType.TOUCH_CANCEL, this.onEnd, this, true);
+            node.off(Node.EventType.MOUSE_WHEEL, this.onWheel, this, true);
+        }
     }
 
-    /**
-     * 换关时收回放大和拖动。
-     */
+    public rememberRest(): void { this.rest.set(this.node.position); }
+
     public resetView(): void {
+        this.touchIds.clear();
         this.pinchDistance = 0;
         this.tracking = false;
         BoardGesture.swallowTap = false;
@@ -60,124 +66,127 @@ export class BoardGesture extends Component {
         this.node.setPosition(this.rest);
     }
 
-    private onStart(event: EventTouch) {
+    private onStart(event: EventTouch): void {
+        if (this.canInteract && !this.canInteract()) return;
+        for (const touch of event.getTouches()) {
+            if (this.contains(touch.getUILocation())) this.touchIds.add(touch.getID());
+        }
         const points = this.readPoints(event);
         if (points.length >= 2) {
             BoardGesture.swallowTap = true;
-            this.pinchDistance = 0;
             this.tracking = false;
-            return;
+            this.beginPinch(points[0], points[1]);
+        } else if (points.length === 1) {
+            BoardGesture.swallowTap = false;
+            this.origin.set(points[0]);
+            this.lastPoint.set(points[0]);
+            this.tracking = true;
+            this.pinchDistance = 0;
         }
-        BoardGesture.swallowTap = false;
-        this.origin.set(points[0]);
-        this.tracking = true;
-        this.pinchDistance = 0;
     }
 
-    private onMove(event: EventTouch) {
+    private onMove(event: EventTouch): void {
+        if (this.canInteract && !this.canInteract()) return;
         const points = this.readPoints(event);
         if (points.length >= 2) {
-            this.pinch(points[0], points[1]);
+            BoardGesture.swallowTap = true;
+            this.tracking = false;
+            const distance = Vec2.distance(points[0], points[1]);
+            if (this.pinchDistance <= 0) { this.beginPinch(points[0], points[1]); return; }
+            const center = this.toParent(new Vec2((points[0].x + points[1].x) / 2,
+                (points[0].y + points[1].y) / 2));
+            this.applyScale(this.pinchScale * distance / this.pinchDistance, center, this.pinchCenter);
+            this.pinchCenter.set(center);
             return;
         }
         this.pinchDistance = 0;
         if (!this.tracking || points.length !== 1) return;
-        const dx = points[0].x - this.origin.x;
-        const dy = points[0].y - this.origin.y;
-        if (dx * dx + dy * dy < this.tapSlop * this.tapSlop) return;
+        const point = points[0];
+        const current = this.toParent(point);
+        const previous = this.toParent(this.lastPoint);
+        this.lastPoint.set(point);
+        if (Vec2.distance(point, this.origin) < this.tapSlop && !BoardGesture.swallowTap) return;
         BoardGesture.swallowTap = true;
         if (this.node.scale.x <= this.minScale + 0.001) return;
-        const delta = event.getUIDelta();
-        this.node.setPosition(
-            this.node.position.x + delta.x,
-            this.node.position.y + delta.y,
-            this.node.position.z
-        );
+        this.node.setPosition(this.node.position.x + current.x - previous.x,
+            this.node.position.y + current.y - previous.y, this.node.position.z);
         this.clamp();
     }
 
-    private onEnd(event: EventTouch) {
-        const left = event.getTouches();
+    private onEnd(event: EventTouch): void {
+        for (const touch of event.getTouches()) this.touchIds.delete(touch.getID());
+        const left = this.readPoints(event);
         this.pinchDistance = 0;
-        if (left.length === 0) {
-            this.tracking = false;
-            return;
-        }
+        this.tracking = left.length === 1;
         if (left.length === 1) {
-            const loc = left[0].getUILocation();
-            this.origin.set(loc.x, loc.y);
-            this.tracking = true;
+            this.origin.set(left[0]);
+            this.lastPoint.set(left[0]);
+        } else if (left.length >= 2) {
+            this.beginPinch(left[0], left[1]);
         }
+        // Keep swallowTap through the last touch-end; reset only on a new tap.
     }
 
-    private pinch(a: Vec2, b: Vec2) {
-        BoardGesture.swallowTap = true;
-        this.tracking = false;
-        const dist = Vec2.distance(a, b);
-        if (dist < 1) return;
-        if (this.pinchDistance <= 0) {
-            this.pinchDistance = dist;
-            this.pinchScale = this.node.scale.x;
-            return;
-        }
-        const mid = new Vec2((a.x + b.x) / 2, (a.y + b.y) / 2);
-        this.applyScale(this.pinchScale * (dist / this.pinchDistance), this.toParent(mid));
+    private onWheel(event: EventMouse): void {
+        if ((this.canInteract && !this.canInteract()) || !this.contains(event.getUILocation())) return;
+        const delta = event.getScrollY();
+        if (!delta) return;
+        this.applyScale(this.node.scale.x * Math.exp(delta * 0.0015), this.toParent(event.getUILocation()));
+        event.propagationStopped = true;
     }
 
-    /**
-     * 以两指中心为原点放大或缩小。
-     * @param next 目标倍数
-     * @param focal 父节点坐标里的两指中心
-     */
-    private applyScale(next: number, focal: Vec3) {
+    private beginPinch(a: Vec2, b: Vec2): void {
+        this.pinchDistance = Math.max(1, Vec2.distance(a, b));
+        this.pinchScale = this.node.scale.x;
+        this.pinchCenter.set(this.toParent(new Vec2((a.x + b.x) / 2, (a.y + b.y) / 2)));
+    }
+
+    private applyScale(next: number, focal: Vec3, previousFocal = focal): void {
         const old = this.node.scale.x;
         if (old <= 0) return;
         const scale = Math.min(this.maxScale, Math.max(this.minScale, next));
         const ratio = scale / old;
         const pos = this.node.position;
         this.node.setScale(scale, scale, 1);
-        this.node.setPosition(
-            focal.x - (focal.x - pos.x) * ratio,
-            focal.y - (focal.y - pos.y) * ratio,
-            pos.z
-        );
+        this.node.setPosition(focal.x - (previousFocal.x - pos.x) * ratio,
+            focal.y - (previousFocal.y - pos.y) * ratio, pos.z);
         this.clamp();
     }
 
-    private clamp() {
+    private clamp(): void {
         const scale = this.node.scale.x;
         if (scale <= this.minScale + 0.001) {
             this.node.setScale(1, 1, 1);
             this.node.setPosition(this.rest);
             return;
         }
-        const size = this.node.getComponent(UITransform)?.contentSize;
-        const width = size?.width ?? 600;
-        const height = size?.height ?? 720;
-        const maxX = (width * (scale - 1)) / 2;
-        const maxY = (height * (scale - 1)) / 2;
-        const x = Math.min(this.rest.x + maxX, Math.max(this.rest.x - maxX, this.node.position.x));
-        const y = Math.min(this.rest.y + maxY, Math.max(this.rest.y - maxY, this.node.position.y));
-        this.node.setPosition(x, y, this.node.position.z);
+        const content = this.node.getComponent(UITransform)?.contentSize;
+        const window = this.viewport?.getComponent(UITransform)?.contentSize;
+        const maxX = Math.max(0, ((content?.width ?? 600) * scale - (window?.width ?? 660)) / 2);
+        const maxY = Math.max(0, ((content?.height ?? 720) * scale - (window?.height ?? 760)) / 2);
+        this.node.setPosition(
+            Math.min(this.rest.x + maxX, Math.max(this.rest.x - maxX, this.node.position.x)),
+            Math.min(this.rest.y + maxY, Math.max(this.rest.y - maxY, this.node.position.y)),
+            this.node.position.z);
     }
 
     private readPoints(event: EventTouch): Vec2[] {
-        const points: Vec2[] = [];
-        for (const touch of event.getTouches()) {
-            const loc = touch.getUILocation();
-            points.push(new Vec2(loc.x, loc.y));
-        }
-        if (points.length === 0) {
-            const loc = event.getUILocation();
-            points.push(new Vec2(loc.x, loc.y));
-        }
-        return points;
+        // getTouches() includes only changed fingers; pinch needs ALL active ones.
+        return event.getAllTouches().filter(touch => this.touchIds.has(touch.getID()))
+            .map(touch => touch.getUILocation());
+    }
+
+    private contains(point: Vec2): boolean {
+        const ui = (this.viewport ?? this.node).getComponent(UITransform);
+        if (!ui) return false;
+        const local = ui.convertToNodeSpaceAR(new Vec3(point.x, point.y, 0));
+        return local.x >= -ui.width * ui.anchorX && local.x <= ui.width * (1 - ui.anchorX) &&
+            local.y >= -ui.height * ui.anchorY && local.y <= ui.height * (1 - ui.anchorY);
     }
 
     private toParent(point: Vec2): Vec3 {
         const parent = this.node.parent?.getComponent(UITransform);
         const raw = new Vec3(point.x, point.y, 0);
-        if (!parent) return raw;
-        return parent.convertToNodeSpaceAR(raw);
+        return parent ? parent.convertToNodeSpaceAR(raw) : raw;
     }
 }

@@ -2,7 +2,7 @@
 import {
     _decorator, Component, Label, Sprite, SpriteFrame,
     director, Node, Layers, Button, UITransform,
-    Graphics, Color, resources, isValid, UIOpacity
+    Graphics, Color, resources, isValid, UIOpacity, Mask
 } from 'cc';
 
 import { PREVIEW } from 'cc/env';
@@ -30,6 +30,7 @@ import { MagnetManager } from './MagnetManager';
 import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
 import { GemCompletionShine } from './GemCompletionShine';
+import { configureGemPalette } from './GemVisuals';
 import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
@@ -413,7 +414,26 @@ onLoad() {
         this.boardManager?.node.setPosition(0, 100, 0);
         const boardNode = this.boardManager?.node;
         if (boardNode) {
+            const canvas = this.node.parent ?? boardNode.parent!;
+            let viewport = canvas.getChildByName('BoardViewport');
+            if (!viewport) {
+                const index = boardNode.getSiblingIndex();
+                viewport = new Node('BoardViewport');
+                viewport.layer = boardNode.layer;
+                viewport.parent = canvas;
+                viewport.setSiblingIndex(index);
+                viewport.addComponent(UITransform);
+                viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+            }
+            // Same coordinate origin as Canvas: existing board/effect positions
+            // remain valid. The fixed rect spans x ±330 and y -280…480.
+            const area = viewport.getComponent(UITransform)!;
+            area.setContentSize(660, 760);
+            area.setAnchorPoint(0.5, 0.5 - 100 / 760);
+            boardNode.parent = viewport;
             this.boardGesture = boardNode.getComponent(BoardGesture) ?? boardNode.addComponent(BoardGesture);
+            this.boardGesture.setViewport(viewport);
+            this.boardGesture.canInteract = () => !this.isAnimating && !this.finished && !this.isSettingsOpen();
             this.boardGesture.rememberRest();
         }
         this.trayManager?.node.setPosition(0, -370, 0);
@@ -1864,6 +1884,7 @@ onLoad() {
             }
 
             this.currentLevelData = data;
+            configureGemPalette(data.palette);
 
             if (this.debugStartLevel === 0) {
                 this.levelManager?.setLastPlayedLevel(data.id);
@@ -1994,6 +2015,7 @@ onLoad() {
         if (!completed) return;
 
         this.finished = true;
+        this.boardGesture?.resetView();
         this.audioManager?.stopBGM();
         this.audioManager?.playComplete();
         VibrationManager.levelCompleted();
@@ -2098,7 +2120,7 @@ onLoad() {
         const height = boardTransform?.contentSize.height ?? 550;
         node.getComponent(UITransform)?.setContentSize(width, height);
         node.setPosition(board.position);
-        node.setSiblingIndex(board.getSiblingIndex() + 1);
+        node.setSiblingIndex((board.parent?.name === 'BoardViewport' ? board.parent.getSiblingIndex() : board.getSiblingIndex()) + 1);
         this.artifactReveal = node;
     }
 
