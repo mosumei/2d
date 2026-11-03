@@ -51,12 +51,12 @@ export class MainMenuSettings {
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
         node.setPosition(-278, 559, 0);
-        node.addComponent(UITransform).setContentSize(80, 80);
+        node.addComponent(UITransform).setContentSize(77, 77);
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load('ui/home/btn_settings/spriteFrame', SpriteFrame, (error, frame) => {
+        resources.load('ui/game/btn_gea/spriteFrame', SpriteFrame, (error, frame) => {
             if (error || !frame || !node.isValid) {
-                if (error) console.error('[MainMenu] 加载 ui/home/btn_settings/spriteFrame 失败', error);
+                if (error) console.error('[MainMenu] 加载 ui/game/btn_gea/spriteFrame 失败', error);
                 return;
             }
             sprite.spriteFrame = frame;

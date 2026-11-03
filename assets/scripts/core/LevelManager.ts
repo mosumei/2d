@@ -242,6 +242,17 @@ export class LevelManager extends Component {
         this.saveProgress();
     }
 
+    /**
+     * 保证这一关已经解锁。预览里通关记录没写上时，首页仍能进入下一关。
+     * @param level 要进入的关卡
+     */
+    public unlockThrough(level: number): void {
+        const target = Math.max(1, Math.min(7, Math.floor(level)));
+        if (target <= this.highestUnlockedLevel) return;
+        this.highestUnlockedLevel = target;
+        this.saveProgress();
+    }
+
     // 通关后解锁下一关
     public unlockNextLevel() {
         const next = this.currentLevel + 1;

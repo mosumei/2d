@@ -15,6 +15,9 @@ export class LevelSession {
     private static readonly SAVE_KEY =
         'jewel_crush_progress_v2';
 
+    private static readonly SHOWCASE_KEY =
+        'jewel_crush_showcase_level';
+
     private static selectedLevel: number | null = null;
 
     public static getProgress(): ProgressData {
@@ -89,19 +92,51 @@ export class LevelSession {
     public static consumeStartLevel(): number {
         const progress = this.getProgress();
 
-        const level =
-            this.selectedLevel ?? progress.lastPlayedLevel;
-
+        const picked = this.selectedLevel;
         this.selectedLevel = null;
+        const level = picked ?? this.getContinueLevel();
+        const cap = picked === null
+            ? Math.max(progress.highestUnlockedLevel, level)
+            : progress.highestUnlockedLevel;
 
-        return Math.max(
-            1,
-            Math.min(level, progress.highestUnlockedLevel)
-        );
+        return Math.max(1, Math.min(level, Math.min(7, cap)));
     }
 
     public static continueGame() {
         this.selectedLevel = null;
+    }
+
+    /**
+     * 首页开始按钮要进的关卡。刚通关的那一关不再重复，改为下一关。
+     */
+    public static getContinueLevel(): number {
+        const progress = this.getProgress();
+        const finished = this.getShowcaseLevel();
+        if (
+            finished !== null &&
+            progress.lastPlayedLevel <= finished &&
+            finished < 7
+        ) {
+            return finished + 1;
+        }
+        return progress.lastPlayedLevel;
+    }
+
+    /**
+     * 记下刚通关的关卡，首页花瓣框用它来显示作品。
+     * @param level 刚完成的关卡编号
+     */
+    public static rememberCompletedLevel(level: number): void {
+        if (!Number.isInteger(level) || level < 1) return;
+        sys.localStorage.setItem(this.SHOWCASE_KEY, String(level));
+    }
+
+    /**
+     * 最近一次通关的关卡。还没通关过时返回 null。
+     */
+    public static getShowcaseLevel(): number | null {
+        const level = Number(sys.localStorage.getItem(this.SHOWCASE_KEY));
+        return Number.isInteger(level) && level >= 1 ? level : null;
     }
 
     /**

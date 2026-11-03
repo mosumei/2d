@@ -2,10 +2,11 @@
 import {
     _decorator, Component, Label, Sprite, SpriteFrame,
     director, Node, Layers, Button, UITransform, Vec2,
-    Graphics, Color, resources, isValid, UIOpacity, Mask
+    Graphics, Color, resources, isValid, UIOpacity, Mask, tween, JsonAsset
 } from 'cc';
 
 import { PREVIEW } from 'cc/env';
+import { loadTileSet } from './TileSprites';
 import { BoardGesture } from './BoardGesture';
 import { BoardManager } from './BoardManager';
 import { TrayManager } from './TrayManager';
@@ -499,17 +500,12 @@ onLoad() {
 
 
     start() {
-        // 预览固定从第 1 关进，引导关才会出现。地址带 preview-level 时改去那一关。
-        // 正式包不走这里，仍按存档里的关卡开始。
-        if (PREVIEW) {
-            let previewLevel = 1;
-            if (typeof location !== 'undefined') {
-                const requested = Number(new URLSearchParams(location.search).get('preview-level'));
-                if (Number.isInteger(requested) && requested >= 1 && requested <= 7) {
-                    previewLevel = requested;
-                }
+        // 地址带 preview-level 时才指定关卡。否则预览和正式包都按存档进入下一关。
+        if (PREVIEW && typeof location !== 'undefined') {
+            const requested = Number(new URLSearchParams(location.search).get('preview-level'));
+            if (Number.isInteger(requested) && requested >= 1 && requested <= 7) {
+                this.debugStartLevel = requested;
             }
-            this.debugStartLevel = previewLevel;
         }
         const preview = this.node.parent
             ?.getChildByName('TargetPreview');
@@ -583,6 +579,7 @@ onLoad() {
             : LevelSession.consumeStartLevel();
 
         console.log(`[DEBUG] 启动关卡：LEVEL ${level}`);
+        this.levelManager?.unlockThrough(level);
         this.openLevel(level);
     }
 
@@ -2135,6 +2132,9 @@ onLoad() {
                 stars
             );
             this.levelManager.unlockNextLevel();
+            if (level < 7) {
+                this.levelManager.setLastPlayedLevel(level + 1);
+            }
         }
 
         console.log(
@@ -2273,30 +2273,72 @@ onLoad() {
     }
 
     private presentLevelComplete(
-        stars: number,
+        _stars: number,
         level: number,
-        newlyCollected: boolean
+        _newlyCollected: boolean
     ) {
         const token = ++this.finishToken;
-        const showPanel = () => {
-            if (!this.isValid || token !== this.finishToken) return;
-            this.completePanel?.show(stars, level, newlyCollected);
-            if (this.completePanel?.node) {
-                this.effects?.playVictory(this.completePanel.node);
-            }
-        };
-
         const board = this.boardManager;
-        const boardNode = board?.node ?? null;
-        const artifact = this.artifactReveal;
         const cancelled = () => !this.isValid || token !== this.finishToken;
-        void this.playCompletionShine(board, cancelled).then(() => {
+        const ready = this.preloadHome(level);
+        void this.playCompletionShine(board, cancelled).then(async () => {
             if (cancelled()) return;
-            if (!this.effects || !boardNode || !artifact || !ARTIFACTS[level]) {
-                showPanel();
-                return;
-            }
-            this.effects.playRestoration(boardNode, artifact, showPanel);
+            LevelSession.rememberCompletedLevel(level);
+            await ready;
+            if (cancelled()) return;
+            const canvas = this.node.parent;
+            if (canvas?.isValid) await this.fadeCanvas(canvas, 0, 0.32);
+            if (cancelled()) return;
+            director.loadScene('MainMenu');
+        });
+    }
+
+    /** 闪耀期间把主页场景和图片先读进内存，切场景时不再卡顿。 */
+    private preloadHome(level: number): Promise<void> {
+        const paths = [
+            'ui/game/bg_scene/spriteFrame',
+            'ui/home/logo_jewel_puzzle/spriteFrame',
+            'ui/home/frame_showcase/spriteFrame',
+            'ui/home/btn_start/spriteFrame',
+            'ui/home/btn_collection/spriteFrame',
+            'ui/home/icon_temple/spriteFrame',
+            'ui/game/btn_gea/spriteFrame'
+        ];
+        const artwork = ARTIFACTS[level]?.image;
+        const extras: Promise<void>[] = [];
+        if (artwork) {
+            paths.push(artwork + '/spriteFrame');
+        } else {
+            const text = level < 10 ? `0${level}` : `${level}`;
+            extras.push(this.preloadJson(`levels/level_${text}`));
+            extras.push(loadTileSet().then(() => undefined));
+        }
+        return Promise.all([
+            this.preloadScene('MainMenu'),
+            ...paths.map(path => this.preloadSprite(path)),
+            ...extras
+        ]).then(() => undefined);
+    }
+
+    private preloadScene(name: string): Promise<void> {
+        return new Promise(resolve => director.preloadScene(name, () => resolve()));
+    }
+
+    private preloadSprite(path: string): Promise<void> {
+        return new Promise(resolve => resources.preload(path, SpriteFrame, () => resolve()));
+    }
+
+    private preloadJson(path: string): Promise<void> {
+        return new Promise(resolve => resources.preload(path, JsonAsset, () => resolve()));
+    }
+
+    private fadeCanvas(canvas: Node, opacity: number, seconds: number): Promise<void> {
+        const component = canvas.getComponent(UIOpacity) ?? canvas.addComponent(UIOpacity);
+        return new Promise(resolve => {
+            tween(component)
+                .to(seconds, { opacity }, { easing: 'sineInOut' })
+                .call(() => resolve())
+                .start();
         });
     }
 
