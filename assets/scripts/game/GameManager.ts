@@ -1,7 +1,7 @@
 
 import {
     _decorator, Component, Label, Sprite, SpriteFrame,
-    director, Node, Layers, Button, UITransform,
+    director, Node, Layers, Button, UITransform, Vec2,
     Graphics, Color, resources, isValid, UIOpacity, Mask
 } from 'cc';
 
@@ -85,6 +85,11 @@ export class GameManager extends Component {
     private settingsPanel: SettingsPanel | null = null;
     private boardGesture: BoardGesture | null = null;
     private toolsNode: Node | null = null;
+    /** 道具行中心。按钮高 136，顶边是 toolsY + 68。 */
+    private readonly toolsY = -544;
+    private readonly toolButtonSize = 136;
+    /** 托盘底边和道具按钮顶边之间的空隙。 */
+    private readonly trayToolGap = 36;
     private hintEffect: HintEffect | null = null;
     private magnetManager: MagnetManager | null = null;
     private magnetRunning = false;
@@ -195,7 +200,6 @@ onLoad() {
         this.collectionPanel = panelNode.addComponent(ArtifactCollectionUI);
     }
 
-    this.ensureCollectionEntry();
     this.ensureSettingsEntry();
 }
 
@@ -293,6 +297,57 @@ onLoad() {
     }
 
     /**
+     * 左上角回主页，右上角打开设置。
+     */
+    private ensureCornerButtons() {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+        this.makeCornerButton(canvas, 'HomeButton', -291, 520, 'ui/game/btn_home', () => {
+            director.loadScene('MainMenu');
+        });
+        this.makeCornerButton(canvas, 'GearButton', 291, 520, 'ui/game/btn_gea', () => {
+            const settings = this.settingsPanel;
+            if (!settings) return;
+            settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
+            settings.openPanel();
+        });
+    }
+
+    private makeCornerButton(
+        canvas: Node,
+        name: string,
+        x: number,
+        y: number,
+        imagePath: string,
+        onClick: () => void
+    ) {
+        const existing = canvas.getChildByName(name);
+        if (existing) {
+            existing.setPosition(x, y, 0);
+            existing.getComponent(UITransform)?.setContentSize(77, 77);
+            return;
+        }
+        const node = new Node(name);
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = canvas;
+        node.setPosition(x, y, 0);
+        node.addComponent(UITransform).setContentSize(77, 77);
+        const sprite = node.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        resources.load(imagePath + '/spriteFrame', SpriteFrame, (error, frame) => {
+            if (error || !frame || !isValid(node)) {
+                if (error) console.error(`[Game] 加载 ${imagePath}/spriteFrame 失败`, error);
+                return;
+            }
+            sprite.spriteFrame = frame;
+        });
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, onClick, this);
+    }
+
+    /**
      * 用游戏页背景替换场景里原来的底图。
      */
     private ensureGameBackground() {
@@ -300,10 +355,11 @@ onLoad() {
         if (!background) return;
         const sprite = background.getComponent(Sprite) ?? background.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        sprite.color = Color.WHITE;
         background.getComponent(UITransform)?.setContentSize(720, 1280);
-        resources.load('ui/game/bg_game/spriteFrame', SpriteFrame, (error, frame) => {
+        resources.load('ui/game/bg_scene/spriteFrame', SpriteFrame, (error, frame) => {
             if (error || !frame || !isValid(background)) {
-                if (error) console.error('[Game] 加载 ui/game/bg_game/spriteFrame 失败', error);
+                if (error) console.error('[Game] 加载 ui/game/bg_scene/spriteFrame 失败', error);
                 return;
             }
             sprite.spriteFrame = frame;
@@ -348,7 +404,7 @@ onLoad() {
         button.zoomScale = 1.06;
         node.on(Button.EventType.CLICK, () => {
             const current = this.levelManager?.getCurrentLevel() ?? 1;
-            const next = current >= 6 ? 1 : current + 1;
+            const next = current >= 7 ? 1 : current + 1;
             this.openLevel(next, true);
         }, this);
     }
@@ -374,6 +430,73 @@ onLoad() {
         return false;
     }
 
+    /**
+     * 托盘底边停在道具行上方。行数变了也只往上长，不会贴到按钮。
+     */
+    private placeTrayAboveTools() {
+        const tray = this.trayManager;
+        if (!tray?.isValid) return;
+        const shelfBottom = tray.getShelfBottom();
+        if (shelfBottom === null) return;
+        const toolTop = this.toolsY + this.toolButtonSize / 2;
+        tray.node.setPosition(0, toolTop + this.trayToolGap - shelfBottom, 0);
+        const canvas = this.node.parent;
+        const viewport = canvas?.getChildByName('BoardViewport');
+        if (canvas && viewport) this.raiseChromeAboveBoard(canvas, viewport);
+    }
+
+    /**
+     * 遮罩铺满可见屏幕。锚点留在画布原点，棋盘本地坐标不用改。
+     */
+    private layoutBoardViewport(viewport: Node) {
+        const area = viewport.getComponent(UITransform);
+        if (!area) return;
+        viewport.setPosition(0, 0, 0);
+        area.setContentSize(720, 1280);
+        area.setAnchorPoint(0.5, 0.5);
+    }
+
+    /**
+     * 托盘、道具、顶部按钮和关卡信息盖在棋盘上面。
+     */
+    private raiseChromeAboveBoard(canvas: Node, viewport: Node) {
+        const chrome = [
+            this.levelLabel?.node,
+            canvas.getChildByName('HomeButton'),
+            canvas.getChildByName('GearButton'),
+            canvas.getChildByName('TrayContainer'),
+            canvas.getChildByName('ToolsContainer')
+        ];
+        let anchor = viewport;
+        for (const node of chrome) {
+            if (!node?.isValid || node.parent !== canvas) continue;
+            const anchorIndex = anchor.getSiblingIndex();
+            const nodeIndex = node.getSiblingIndex();
+            node.setSiblingIndex(nodeIndex < anchorIndex ? anchorIndex : anchorIndex + 1);
+            anchor = node;
+        }
+    }
+
+    /**
+     * 点在托盘、道具或顶部按钮上时，不把它当成棋盘手势。
+     */
+    private installViewportHitTest(area: UITransform) {
+        const original = area.hitTest.bind(area);
+        const chrome = ['HomeButton', 'GearButton', 'LevelLabel', 'TrayContainer', 'ToolsContainer'];
+        area.hitTest = (screenPoint: Vec2, windowId = 0) => {
+            if (!original(screenPoint, windowId)) return false;
+            const canvas = area.node.parent;
+            if (!canvas) return true;
+            for (const name of chrome) {
+                const node = canvas.getChildByName(name);
+                if (!node?.activeInHierarchy) continue;
+                const ui = node.getComponent(UITransform);
+                if (ui?.hitTest(screenPoint, windowId)) return false;
+            }
+            return true;
+        };
+    }
+
 
     start() {
         // 预览固定从第 1 关进，引导关才会出现。地址带 preview-level 时改去那一关。
@@ -382,7 +505,7 @@ onLoad() {
             let previewLevel = 1;
             if (typeof location !== 'undefined') {
                 const requested = Number(new URLSearchParams(location.search).get('preview-level'));
-                if (Number.isInteger(requested) && requested >= 1 && requested <= 6) {
+                if (Number.isInteger(requested) && requested >= 1 && requested <= 7) {
                     previewLevel = requested;
                 }
             }
@@ -399,16 +522,11 @@ onLoad() {
             this.trayManager.node.active = true;
         }
         if (this.levelLabel) {
-            this.levelLabel.node.active = true;
-            this.levelLabel.color = new Color(255, 186, 46, 255);
-            this.levelLabel.enableOutline = true;
-            this.levelLabel.outlineColor = new Color(176, 96, 18, 255);
-            this.levelLabel.outlineWidth = 4;
-            this.levelLabel.isBold = true;
+            this.levelLabel.node.active = false;
         }
 
         this.ensureGameBackground();
-        this.ensureSkipButton();
+        this.ensureCornerButtons();
 
         // Leave a clear gap above the multi-row shelf, even for tall pixel art.
         this.boardManager?.node.setPosition(0, 100, 0);
@@ -425,34 +543,32 @@ onLoad() {
                 viewport.addComponent(UITransform);
                 viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
             }
-            // Same coordinate origin as Canvas: existing board/effect positions
-            // remain valid. The fixed rect spans x ±330 and y -280…480.
             const area = viewport.getComponent(UITransform)!;
-            area.setContentSize(660, 760);
-            area.setAnchorPoint(0.5, 0.5 - 100 / 760);
+            this.layoutBoardViewport(viewport);
+            this.installViewportHitTest(area);
+            this.raiseChromeAboveBoard(canvas, viewport);
             boardNode.parent = viewport;
             this.boardGesture = boardNode.getComponent(BoardGesture) ?? boardNode.addComponent(BoardGesture);
             this.boardGesture.setViewport(viewport);
             this.boardGesture.canInteract = () => !this.isAnimating && !this.finished && !this.isSettingsOpen();
             this.boardGesture.rememberRest();
         }
-        this.trayManager?.node.setPosition(0, -370, 0);
+        if (this.trayManager) {
+            this.trayManager.onShelfResized = () => this.placeTrayAboveTools();
+        }
         const tools = this.node.parent?.getChildByName('ToolsContainer');
         if (tools) {
             this.toolsNode = tools;
             tools.active = true;
-            tools.setPosition(0, -522, 0);
+            tools.setPosition(0, this.toolsY, 0);
             const bar = tools.getComponent(ToolsBarUI) ?? tools.addComponent(ToolsBarUI);
             bar.build();
             this.toolsBar = bar;
             bar.onWandClick = () => this.toggleWand();
             bar.onHintClick = () => this.useHint();
             bar.onMagnetClick = () => this.useMagnet();
-            bar.onSettingsClick = () => {
-                const settings = this.settingsPanel;
-                if (!settings) return;
-                settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
-                settings.openPanel();
+            bar.onShareClick = () => {
+                this.showFloatingTip('HintTip', localize('暂未开放', 'Not available yet'));
             };
             this.refreshRankLabel();
         }
@@ -1348,7 +1464,7 @@ onLoad() {
         }
     }
 
-    // 和点中的那颗上下左右相连、还没归位的同色棋子。点中的那颗排在最前。
+    // 和点中的那颗八个方向相连、还没归位的同色棋子。斜角也算，能连上就继续找。点中的那颗排在最前。
     private getSameColorMovableCells(origin: GemCell): GemCell[] {
         const color = origin.currentColor;
         const board = this.boardManager;
@@ -1365,15 +1481,7 @@ onLoad() {
             if (!cell.canMove() || cell.currentColor !== color) continue;
 
             group.push(cell);
-            const neighbors = [
-                board.getCell(cell.row - 1, cell.col),
-                board.getCell(cell.row + 1, cell.col),
-                board.getCell(cell.row, cell.col - 1),
-                board.getCell(cell.row, cell.col + 1)
-            ];
-            for (const neighbor of neighbors) {
-                if (neighbor) pending.push(neighbor);
-            }
+            for (const neighbor of this.adjacentCells(cell)) pending.push(neighbor);
         }
 
         group.sort((a, b) => {
@@ -1386,7 +1494,7 @@ onLoad() {
         return group;
     }
 
-    // 从点中的空格出发，只取连在一起的同色空格。
+    // 从点中的空格出发，八个方向连在一起的同色空格都收进来。斜角也算。
     private getConnectedEmptyCells(origin: GemCell): GemCell[] {
         const board = this.boardManager;
         const color = origin.targetColor;
@@ -1403,15 +1511,7 @@ onLoad() {
             if (cell.currentColor !== null || cell.targetColor !== color) continue;
 
             group.push(cell);
-            const neighbors = [
-                board.getCell(cell.row - 1, cell.col),
-                board.getCell(cell.row + 1, cell.col),
-                board.getCell(cell.row, cell.col - 1),
-                board.getCell(cell.row, cell.col + 1)
-            ];
-            for (const neighbor of neighbors) {
-                if (neighbor) pending.push(neighbor);
-            }
+            for (const neighbor of this.adjacentCells(cell)) pending.push(neighbor);
         }
 
         group.sort((a, b) => {
@@ -1422,6 +1522,21 @@ onLoad() {
             return da - db || a.row - b.row || a.col - b.col;
         });
         return group;
+    }
+
+    /** 上下左右和四个斜角。没有格子的位置跳过。 */
+    private adjacentCells(cell: GemCell): GemCell[] {
+        const board = this.boardManager;
+        if (!board) return [];
+        const found: GemCell[] = [];
+        for (const row of [cell.row - 1, cell.row, cell.row + 1]) {
+            for (const col of [cell.col - 1, cell.col, cell.col + 1]) {
+                if (row === cell.row && col === cell.col) continue;
+                const neighbor = board.getCell(row, col);
+                if (neighbor) found.push(neighbor);
+            }
+        }
+        return found;
     }
 
     // 选中的同色棋子落到托盘里同色的后面。空槽不够时，先拿走点中的那颗，其余留在原位。
@@ -1437,10 +1552,15 @@ onLoad() {
             ? [...this.selectedGroup]
             : this.getSameColorMovableCells(origin);
 
+        if (room === 0) {
+            this.showFloatingTip('HintTip', localize('托盘已满，先把棋子放回同色空位', 'Shelf full — place gems on matching empty tiles'));
+            return false;
+        }
+
         const batchCells: GemCell[] = [];
         for (const cell of cells) {
             if (batchCells.length >= room) break;
-            if (!cell.currentColor || !cell.gemSprite?.spriteFrame) continue;
+            if (!cell.currentColor || !cell.gemSprite?.node) continue;
             batchCells.push(cell);
         }
         const reserved = batchCells.length > 0
@@ -1453,10 +1573,7 @@ onLoad() {
             batch.push({ cell: batchCells[index], color, slot });
         }
 
-        if (batch.length === 0) {
-            this.showFloatingTip('HintTip', localize('托盘已满，先把棋子放回同色空位', 'Shelf full — place gems on matching empty tiles'));
-            return false;
-        }
+        if (batch.length === 0) return false;
 
         this.hintEffect?.clearHint();
 
@@ -1479,11 +1596,10 @@ onLoad() {
         const moves: GemMove[] = [];
         batch.forEach((item) => {
             const slotNode = tray.getSlotNode(item.slot);
-            const frame = item.cell.gemSprite?.spriteFrame;
             const gemNode = item.cell.gemSprite?.node;
-            if (!slotNode || !frame || !gemNode) return;
+            if (!slotNode || !gemNode) return;
             moves.push({
-                frame,
+                frame: item.cell.gemSprite?.spriteFrame ?? null,
                 from: gemNode,
                 to: slotNode,
                 startSize: Math.round(item.cell.getDisplaySize() * 0.72),
@@ -1745,20 +1861,7 @@ onLoad() {
             const task = new GemCompletionShine().playRegion(region,
                 () => !this.isValid || token !== this.finishToken);
             this.regionShines.push(task);
-            this.grantTrayRow();
         }
-    }
-
-    /**
-     * 色块放满后补 3 个空位。只有新开一行时才把托盘上移，避免压住道具栏。
-     */
-    private grantTrayRow(): void {
-        const tray = this.trayManager;
-        if (!tray?.isValid) return;
-        const lift = tray.addSlots(3);
-        if (lift <= 0) return;
-        const node = tray.node;
-        node.setPosition(node.position.x, node.position.y + lift, node.position.z);
     }
 
     private runMoves(
@@ -1891,8 +1994,7 @@ onLoad() {
             }
 
             this.boardGesture?.resetView();
-            this.trayManager!.node.setPosition(0, -370, 0);
-            const trayReady = this.trayManager!.resetTray(12 * 3);
+            const trayReady = this.trayManager!.resetTray(12);
             const steps = readTutorialSteps(data.tutorialSteps);
             if (this.toolsNode) this.toolsNode.active = true;
             this.tutorial?.stop();
@@ -1984,7 +2086,7 @@ onLoad() {
         if (!this.finished || !this.levelManager) return;
 
         const next = this.levelManager.getCurrentLevel() + 1;
-        if (next > 6) return;
+        if (next > 7) return;
         this.openLevel(next);
     }
 

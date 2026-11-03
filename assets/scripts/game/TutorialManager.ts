@@ -1,6 +1,5 @@
 import {
     Color,
-    Graphics,
     Label,
     Layers,
     Node,
@@ -284,32 +283,30 @@ export class TutorialManager {
         const root = new Node('TutorialOverlay');
         root.layer = Layers.Enum.UI_2D;
         root.parent = canvas;
-        root.addComponent(UITransform).setContentSize(640, 96);
+        const rootTransform = root.addComponent(UITransform);
+        rootTransform.setContentSize(420, 36);
+        Object.assign(rootTransform, { hitTest: () => false });
         root.setPosition(0, 430, 0);
 
         const banner = new Node('Banner');
         banner.layer = Layers.Enum.UI_2D;
         banner.parent = root;
-        banner.addComponent(UITransform).setContentSize(560, 84);
-        const graphics = banner.addComponent(Graphics);
-        graphics.fillColor = new Color(255, 248, 235, 235);
-        graphics.roundRect(-280, -42, 560, 84, 22);
-        graphics.fill();
-        graphics.strokeColor = new Color(196, 142, 64, 255);
-        graphics.lineWidth = 4;
-        graphics.roundRect(-280, -42, 560, 84, 22);
-        graphics.stroke();
+        const bannerTransform = banner.addComponent(UITransform);
+        bannerTransform.setContentSize(420, 36);
+        Object.assign(bannerTransform, { hitTest: () => false });
 
         const labelNode = new Node('Message');
         labelNode.layer = Layers.Enum.UI_2D;
         labelNode.parent = banner;
-        labelNode.addComponent(UITransform).setContentSize(520, 64);
+        const labelTransform = labelNode.addComponent(UITransform);
+        labelTransform.setContentSize(400, 32);
+        Object.assign(labelTransform, { hitTest: () => false });
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
-        label.fontSize = 28;
-        label.lineHeight = 34;
-        label.isBold = true;
+        label.fontSize = 20;
+        label.lineHeight = 26;
+        label.isBold = false;
         label.color = new Color(92, 58, 32, 255);
         label.horizontalAlign = Label.HorizontalAlign.CENTER;
         label.verticalAlign = Label.VerticalAlign.CENTER;
@@ -330,7 +327,7 @@ export class TutorialManager {
     }
 
     /**
-     * 和起点上下左右连在一起、同色且还能移动的棋子。
+     * 和起点八个方向连在一起、同色且还能移动的棋子。斜角也算。
      */
     private connectedMovable(board: BoardManager, origin: GemCell): GemCell[] {
         const color = origin.currentColor;
@@ -341,7 +338,7 @@ export class TutorialManager {
     }
 
     /**
-     * 和起点连在一起、目标色相同的空格。
+     * 和起点八个方向连在一起、目标色相同的空格。斜角也算。
      */
     private connectedEmpty(board: BoardManager, origin: GemCell): GemCell[] {
         const color = origin.targetColor;
@@ -365,14 +362,12 @@ export class TutorialManager {
             seen.add(cell);
             if (!accept(cell)) continue;
             group.push(cell);
-            const neighbors = [
-                board.getCell(cell.row - 1, cell.col),
-                board.getCell(cell.row + 1, cell.col),
-                board.getCell(cell.row, cell.col - 1),
-                board.getCell(cell.row, cell.col + 1)
-            ];
-            for (const neighbor of neighbors) {
-                if (neighbor) pending.push(neighbor);
+            for (const row of [cell.row - 1, cell.row, cell.row + 1]) {
+                for (const col of [cell.col - 1, cell.col, cell.col + 1]) {
+                    if (row === cell.row && col === cell.col) continue;
+                    const neighbor = board.getCell(row, col);
+                    if (neighbor) pending.push(neighbor);
+                }
             }
         }
         return group;

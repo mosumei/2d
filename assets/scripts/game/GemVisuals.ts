@@ -103,10 +103,11 @@ export function drawSocket(node: Node, size: number, color: GemColor): void {
     polygon(g, octagon(0, -size * 0.045, size * 0.30), shade(rgb, -0.22));
 }
 
-/** The peach, cut-corner recesses in the reference shelf. */
+/** 托盘空位上的浅圆角凹槽，不描边。 */
 export function drawShelfSocket(g: Graphics, size: number): void {
-    const r = size * 0.37;
-    polygon(g, octagon(0, -1, r+1.5), new Color(255, 252, 230, 255));
-    polygon(g, octagon(0, 1, r), new Color(220, 147, 92, 255));
-    polygon(g, octagon(0, -1, r * 0.81), new Color(249, 188, 137, 255));
+    const well = size * 0.62;
+    const radius = well * 0.32;
+    g.fillColor = new Color(255, 248, 238, 255);
+    g.roundRect(-well / 2, -well / 2, well, well, radius);
+    g.fill();
 }

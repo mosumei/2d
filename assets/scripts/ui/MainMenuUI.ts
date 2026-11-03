@@ -31,7 +31,7 @@ export class MainMenuUI extends Component {
 
     onLoad() {
         if (PREVIEW && typeof location !== 'undefined' &&
-            /^[1-6]$/.test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
+            /^[1-7]$/.test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
             director.loadScene('Game');
             return;
         }

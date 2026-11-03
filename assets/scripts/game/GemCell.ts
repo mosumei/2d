@@ -6,8 +6,6 @@ import {
     Color,
     Node,
     UITransform,
-    Graphics,
-    Layers,
     Tween,
     tween,
     Vec3
@@ -71,7 +69,6 @@ export class GemCell extends Component {
     private targetFrames: TargetFrames = {};
 
     private displaySize = 60;
-    private outline: Graphics | null = null;
     private picked = false;
 
     onLoad() {
@@ -242,13 +239,6 @@ export class GemCell extends Component {
             gemNode.setPosition(0, 0, 0);
             gemNode.setScale(1, 1, 1);
         }
-        const outlineNode = this.outline?.node;
-        if (outlineNode?.isValid && resting) {
-            Tween.stopAllByTarget(outlineNode);
-            outlineNode.setPosition(0, 0, 0);
-        }
-
-        this.paintSelection();
     }
 
     public setSelected(selected: boolean) {
@@ -256,66 +246,22 @@ export class GemCell extends Component {
         if (selected && this.node.parent) {
             this.node.setSiblingIndex(this.node.parent.children.length - 1);
         }
-        this.paintSelection();
         this.animatePick(selected);
     }
 
     /**
-     * 先去掉选中框。棋子先留在抬起的位置，等飞行动画读完坐标再归位。
+     * 取消选中。棋子先留在抬起的位置，等飞行动画读完坐标再归位。
      */
     public releaseOutline() {
         this.picked = false;
-        this.paintSelection();
-    }
-
-    private paintSelection() {
-        if (!this.picked && !this.outline) return;
-
-        if (!this.outline) {
-            const outlineNode = new Node('SelectionOutline');
-            outlineNode.layer = Layers.Enum.UI_2D;
-            outlineNode.parent = this.node;
-            outlineNode.addComponent(UITransform);
-            this.outline = outlineNode.addComponent(Graphics);
-        }
-
-        this.outline.getComponent(UITransform)
-            ?.setContentSize(this.displaySize, this.displaySize);
-        this.outline.clear();
-        if (!this.picked) return;
-
-        const half = this.displaySize * 0.39;
-        const inset = Math.min(2, this.displaySize * 0.06);
-        this.outline.lineWidth = Math.max(0.7, this.displaySize * 0.025);
-        this.outline.strokeColor = new Color(255, 216, 146, 210);
-        this.outline.roundRect(
-            -half + inset,
-            -half + inset,
-            half * 2 - inset * 2,
-            half * 2 - inset * 2,
-            Math.max(2, this.displaySize * 0.1)
-        );
-        this.outline.stroke();
     }
 
     private animatePick(lifted: boolean) {
         const gem = this.gemSprite?.node;
-        const outlineNode = this.outline?.node;
         const distance = this.displaySize * 0.26;
         const y = lifted ? distance : 0;
         const scale = lifted ? 1.12 : 1;
         const easing = lifted ? 'backOut' as const : 'quadOut' as const;
-
-        if (outlineNode?.isValid) {
-            Tween.stopAllByTarget(outlineNode);
-            if (!lifted && gem?.isValid && !gem.active) {
-                outlineNode.setPosition(0, 0, 0);
-            } else {
-                tween(outlineNode)
-                    .to(0.16, { position: new Vec3(0, y, 0) }, { easing })
-                    .start();
-            }
-        }
 
         if (!gem?.isValid) return;
         Tween.stopAllByTarget(gem);
@@ -341,8 +287,6 @@ export class GemCell extends Component {
     onDestroy() {
         const gem = this.gemSprite?.node;
         if (gem?.isValid) Tween.stopAllByTarget(gem);
-        const outlineNode = this.outline?.node;
-        if (outlineNode?.isValid) Tween.stopAllByTarget(outlineNode);
         this.node.off(
             Node.EventType.TOUCH_END,
             this.handleClick,

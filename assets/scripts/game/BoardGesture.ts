@@ -160,14 +160,29 @@ export class BoardGesture extends Component {
             this.node.setPosition(this.rest);
             return;
         }
-        const content = this.node.getComponent(UITransform)?.contentSize;
-        const window = this.viewport?.getComponent(UITransform)?.contentSize;
-        const maxX = Math.max(0, ((content?.width ?? 600) * scale - (window?.width ?? 660)) / 2);
-        const maxY = Math.max(0, ((content?.height ?? 720) * scale - (window?.height ?? 760)) / 2);
-        this.node.setPosition(
-            Math.min(this.rest.x + maxX, Math.max(this.rest.x - maxX, this.node.position.x)),
-            Math.min(this.rest.y + maxY, Math.max(this.rest.y - maxY, this.node.position.y)),
-            this.node.position.z);
+        const board = this.node.getComponent(UITransform);
+        const frame = this.viewport?.getComponent(UITransform);
+        const scaledW = (board?.contentSize.width ?? 600) * scale;
+        const scaledH = (board?.contentSize.height ?? 720) * scale;
+        const windowW = frame?.contentSize.width ?? 660;
+        const windowH = frame?.contentSize.height ?? 760;
+        const frameLeft = -(frame?.anchorPoint.x ?? 0.5) * windowW;
+        const frameBottom = -(frame?.anchorPoint.y ?? 0.5) * windowH;
+        const anchorX = board?.anchorPoint.x ?? 0.5;
+        const anchorY = board?.anchorPoint.y ?? 0.5;
+        // 棋盘比窗口小就留在里面；比窗口大就只露出窗口里的部分。两种都能上下左右拖。
+        const x = this.limitAxis(this.node.position.x, anchorX, scaledW, frameLeft, frameLeft + windowW);
+        const y = this.limitAxis(this.node.position.y, anchorY, scaledH, frameBottom, frameBottom + windowH);
+        this.node.setPosition(x, y, this.node.position.z);
+    }
+
+    /** 把锚点限制在窗口边上。内容更小时贴边即停，更大时滑到对边即停。 */
+    private limitAxis(center: number, anchor: number, length: number, low: number, high: number): number {
+        const atLow = low + anchor * length;
+        const atHigh = high - (1 - anchor) * length;
+        const min = Math.min(atLow, atHigh);
+        const max = Math.max(atLow, atHigh);
+        return Math.min(max, Math.max(min, center));
     }
 
     private readPoints(event: EventTouch): Vec2[] {

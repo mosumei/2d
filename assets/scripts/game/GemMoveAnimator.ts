@@ -23,7 +23,7 @@ const FLIGHT_TIME = 0.22;
 const SETTLE_TIME = 0.11;
 
 export interface GemMove {
-    frame: SpriteFrame;
+    frame: SpriteFrame | null;
     from: Node;
     to: Node;
     startSize?: number;
@@ -371,7 +371,7 @@ export class GemMoveAnimator extends Component {
         };
     }
 
-    private makeFlyer(size: number, frame: SpriteFrame, color: GemColor | undefined): Node {
+    private makeFlyer(size: number, frame: SpriteFrame | null, color: GemColor | undefined): Node {
         const flyer = new Node('GemFlyer');
         flyer.layer = Layers.Enum.UI_2D;
         flyer.parent = this.node;

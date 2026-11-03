@@ -18,6 +18,7 @@ export class ToolsBarUI extends Component {
     public onHintClick: (() => void) | null = null;
     public onMagnetClick: (() => void) | null = null;
     public onSettingsClick: (() => void) | null = null;
+    public onShareClick: (() => void) | null = null;
     private rankLabel: Label | null = null;
 
     onLoad() {
@@ -30,25 +31,26 @@ export class ToolsBarUI extends Component {
 
         this.node.layer = Layers.Enum.UI_2D;
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
-        root.setContentSize(640, 140);
+        root.setContentSize(680, 200);
 
-        this.makeTool('MagnetButton', -222, 'ui/game/btn_magnet');
-        this.makeTool('MagicWandButton', -74, 'ui/game/btn_wand');
-        this.makeTool('HintButton', 74, 'ui/game/btn_hint');
-        this.makeSettings(222);
+        const size = 136;
+        this.makeTool('MagnetButton', -214, 'ui/game/btn_lock', size);
+        this.makeTool('MagicWandButton', -65, 'ui/game/btn_lock', size);
+        this.makeTool('HintButton', 84, 'ui/game/btn_temple', size);
+        this.makeShare(232, size);
     }
 
-    private makeTool(name: string, x: number, imagePath: string) {
+    private makeTool(name: string, x: number, imagePath: string, size: number) {
         const buttonNode = new Node(name);
         buttonNode.layer = Layers.Enum.UI_2D;
         buttonNode.parent = this.node;
         buttonNode.setPosition(x, 0, 0);
-        buttonNode.addComponent(UITransform).setContentSize(118, 121);
+        buttonNode.addComponent(UITransform).setContentSize(size, size);
 
         const icon = new Node('Icon');
         icon.layer = Layers.Enum.UI_2D;
         icon.parent = buttonNode;
-        icon.addComponent(UITransform).setContentSize(118, 121);
+        icon.addComponent(UITransform).setContentSize(size, size);
         const sprite = icon.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         resources.load(imagePath + '/spriteFrame', SpriteFrame, (err, frame) => {
@@ -87,42 +89,32 @@ export class ToolsBarUI extends Component {
         button.zoomScale = 1.05;
     }
 
-    private makeSettings(x: number) {
-        const buttonNode = new Node('SettingsButton');
+    private makeShare(x: number, size: number) {
+        const buttonNode = new Node('ShareButton');
         buttonNode.layer = Layers.Enum.UI_2D;
         buttonNode.parent = this.node;
         buttonNode.setPosition(x, 0, 0);
-        buttonNode.addComponent(UITransform).setContentSize(118, 121);
+        buttonNode.addComponent(UITransform).setContentSize(size, size);
 
         const icon = new Node('Icon');
         icon.layer = Layers.Enum.UI_2D;
         icon.parent = buttonNode;
-        icon.addComponent(UITransform).setContentSize(118, 121);
+        icon.addComponent(UITransform).setContentSize(size, size);
         const sprite = icon.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load('ui/game/btn_settings/spriteFrame', SpriteFrame, (err, frame) => {
+        resources.load('ui/game/btn_share/spriteFrame', SpriteFrame, (err, frame) => {
             if (err || !frame || !isValid(icon)) {
-                if (err) console.error('[Game] 加载 ui/game/btn_settings/spriteFrame 失败', err);
+                if (err) console.error('[Game] 加载 ui/game/btn_share/spriteFrame 失败', err);
                 return;
             }
             sprite.spriteFrame = frame;
         });
 
-        const rank = this.makeText('RankLabel', '', 18, Color.WHITE);
-        rank.isBold = true;
-        rank.enableOutline = true;
-        rank.outlineColor = new Color(70, 90, 170, 255);
-        rank.outlineWidth = 2;
-        rank.node.parent = buttonNode;
-        rank.node.setPosition(0, -40, 0);
-        rank.node.getComponent(UITransform)?.setContentSize(100, 28);
-        this.rankLabel = rank;
-
         const button = buttonNode.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.05;
         buttonNode.on(Button.EventType.CLICK, () => {
-            this.onSettingsClick?.();
+            this.onShareClick?.();
         }, this);
     }
 
@@ -155,7 +147,8 @@ export class ToolsBarUI extends Component {
         const node = new Node('WatchAdBadge');
         node.layer = Layers.Enum.UI_2D;
         node.parent = parent;
-        node.setPosition(0, 74, 0);
+        const parentHeight = parent.getComponent(UITransform)?.contentSize.height ?? 136;
+        node.setPosition(0, parentHeight * 0.5 + 16, 0);
         node.active = false;
         const transform = node.addComponent(UITransform);
         transform.setContentSize(96, 28);

@@ -50,6 +50,9 @@ public getFirstEmptySlot(): number {
     public onSlotClicked:
         ((index: number) => void) | null = null;
 
+    /** 底板尺寸变化后通知外面重新留出和道具行的空隙。 */
+    public onShelfResized: (() => void) | null = null;
+
     private slots: Node[] = [];
     private gems: (GemColor | null)[] = [];
     private selectedIndex = -1;
@@ -60,6 +63,10 @@ public getFirstEmptySlot(): number {
     private gemSize = 44;
     private readonly slotGap = 8;
     private readonly maxTrayWidth = 640;
+    /** 十二个槽收在一条浅色胶囊里，两边留出空隙。 */
+    private readonly barWidth = 560;
+    /** 槽的上下各留一截，单行时底板不会太厚。 */
+    private readonly barPadY = 22;
 
 public resetTray(capacity: number): Promise<void> {
     this.capacity = capacity;
@@ -112,51 +119,66 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     /**
-     * 按当前全部槽位重画托盘底板，新的一行伸在最下面。
+     * 按当前槽位画托盘底板。不描边。
      */
     private resizeShelf(): void {
-        const previous = this.node.getChildByName('Shelf');
-        if (previous?.isValid) previous.destroy();
         if (this.slots.length === 0) return;
 
-        const half = this.slotSize / 2;
-        let minX = this.slots[0].position.x;
-        let maxX = minX;
         let minY = this.slots[0].position.y;
         let maxY = minY;
         for (const slot of this.slots) {
             if (!slot.isValid) continue;
-            minX = Math.min(minX, slot.position.x);
-            maxX = Math.max(maxX, slot.position.x);
             minY = Math.min(minY, slot.position.y);
             maxY = Math.max(maxY, slot.position.y);
         }
 
-        const left = minX - half - 11;
-        const bottom = minY - half - 14;
-        const width = maxX - minX + this.slotSize + 22;
-        const height = maxY - minY + this.slotSize + 22;
-        const backing = new Node('Shelf');
-        backing.layer = Layers.Enum.UI_2D;
-        backing.parent = this.node;
+        const height = maxY - minY + this.slotSize + this.barPadY * 2;
+        let backing = this.node.getChildByName('Shelf');
+        if (!backing?.isValid) {
+            backing = new Node('Shelf');
+            backing.layer = Layers.Enum.UI_2D;
+            backing.parent = this.node;
+            backing.addComponent(UITransform);
+            backing.addComponent(Graphics);
+        }
         backing.setSiblingIndex(0);
-        backing.addComponent(UITransform).setContentSize(width, height);
-        const bg = backing.addComponent(Graphics);
-        bg.fillColor = new Color(196, 157, 115, 255);
-        bg.roundRect(left, bottom, width, height, 14);
-        bg.fill();
-        bg.fillColor = new Color(255, 238, 212, 255);
-        bg.roundRect(left, bottom + 5, width, height, 14);
-        bg.fill();
-        bg.strokeColor = new Color(255, 253, 238, 255);
-        bg.lineWidth = 3;
-        bg.roundRect(left + 2, bottom + 7, width - 4, height - 4, 12);
-        bg.stroke();
-        this.node.getComponent(UITransform)?.setContentSize(width, height);
+        backing.setPosition(0, (minY + maxY) / 2, 0);
+        backing.getComponent(UITransform)?.setContentSize(this.barWidth, height);
+        const graphics = backing.getComponent(Graphics);
+        if (graphics) {
+            const radius = Math.min(28, height / 2);
+            graphics.clear();
+            graphics.fillColor = new Color(255, 236, 214, 255);
+            graphics.roundRect(-this.barWidth / 2, -height / 2, this.barWidth, height, radius);
+            graphics.fill();
+        }
+        this.node.getComponent(UITransform)?.setContentSize(this.barWidth, height);
+        this.onShelfResized?.();
+    }
+
+    /**
+     * 底板在托盘节点里的底边。还没铺开时返回 null。
+     */
+    public getShelfBottom(): number | null {
+        const shelf = this.node.getChildByName('Shelf');
+        const height = shelf?.getComponent(UITransform)?.contentSize.height ?? 0;
+        if (!shelf?.isValid || height <= 0) return null;
+        return shelf.position.y - height / 2;
+    }
+
+    /**
+     * 底板在托盘节点里的顶边。还没铺开时返回 null。
+     */
+    public getShelfTop(): number | null {
+        const shelf = this.node.getChildByName('Shelf');
+        const height = shelf?.getComponent(UITransform)?.contentSize.height ?? 0;
+        if (!shelf?.isValid || height <= 0) return null;
+        return shelf.position.y + height / 2;
     }
 
     private createSlots() {
         for (const child of [...this.node.children]) {
+            if (child.name === 'Shelf') continue;
             child.destroy();
         }
 
@@ -168,23 +190,9 @@ public resetTray(capacity: number): Promise<void> {
         const count = Math.max(1, this.capacity);
         const columns = Math.min(12, count);
         const rows = Math.ceil(count / columns);
-        this.slotSize = Math.min(46, Math.floor((600 - 24) / columns));
+        this.slotSize = Math.min(46, Math.floor((this.barWidth - 80) / columns));
         this.gemSize = Math.round(this.slotSize * 48 / 60);
         const step = this.slotSize;
-        const width = columns * step;
-        const height = rows * step;
-        this.node.getComponent(UITransform)?.setContentSize(width + 22, height + 22);
-        const backing = new Node('Shelf');
-        backing.layer = Layers.Enum.UI_2D;
-        backing.parent = this.node;
-        backing.addComponent(UITransform).setContentSize(width + 22, height + 22);
-        const bg = backing.addComponent(Graphics);
-        bg.fillColor = new Color(196, 157, 115, 255);
-        bg.roundRect(-width / 2 - 11, -height / 2 - 14, width + 22, height + 22, 14); bg.fill();
-        bg.fillColor = new Color(255, 238, 212, 255);
-        bg.roundRect(-width / 2 - 11, -height / 2 - 9, width + 22, height + 22, 14); bg.fill();
-        bg.strokeColor = new Color(255, 253, 238, 255); bg.lineWidth = 3;
-        bg.roundRect(-width / 2 - 9, -height / 2 - 7, width + 18, height + 18, 12); bg.stroke();
 
         for (let i = 0; i < this.capacity; i++) {
             const slot = new Node(`TraySlot_${i}`);
@@ -210,6 +218,7 @@ public resetTray(capacity: number): Promise<void> {
 
             this.drawSlot(i);
         }
+        this.resizeShelf();
     }
 
     private drawSlot(index: number) {
