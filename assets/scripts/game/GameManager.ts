@@ -89,7 +89,7 @@ export class GameManager extends Component {
     /** 道具行中心。按钮高 136，顶边是 toolsY + 68。 */
     private readonly toolsY = -544;
     private readonly toolButtonSize = 136;
-    /** 托盘底边和道具按钮顶边之间的空隙。 */
+    /** 托盘底边和「查看广告」顶边之间的空隙。 */
     private readonly trayToolGap = 36;
     private hintEffect: HintEffect | null = null;
     private magnetManager: MagnetManager | null = null;
@@ -298,57 +298,6 @@ onLoad() {
     }
 
     /**
-     * 左上角回主页，右上角打开设置。
-     */
-    private ensureCornerButtons() {
-        const canvas = this.node.parent;
-        if (!canvas) return;
-        this.makeCornerButton(canvas, 'HomeButton', -291, 520, 'ui/game/btn_home', () => {
-            director.loadScene('MainMenu');
-        });
-        this.makeCornerButton(canvas, 'GearButton', 291, 520, 'ui/game/btn_gea', () => {
-            const settings = this.settingsPanel;
-            if (!settings) return;
-            settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
-            settings.openPanel();
-        });
-    }
-
-    private makeCornerButton(
-        canvas: Node,
-        name: string,
-        x: number,
-        y: number,
-        imagePath: string,
-        onClick: () => void
-    ) {
-        const existing = canvas.getChildByName(name);
-        if (existing) {
-            existing.setPosition(x, y, 0);
-            existing.getComponent(UITransform)?.setContentSize(77, 77);
-            return;
-        }
-        const node = new Node(name);
-        node.layer = Layers.Enum.UI_2D;
-        node.parent = canvas;
-        node.setPosition(x, y, 0);
-        node.addComponent(UITransform).setContentSize(77, 77);
-        const sprite = node.addComponent(Sprite);
-        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load(imagePath + '/spriteFrame', SpriteFrame, (error, frame) => {
-            if (error || !frame || !isValid(node)) {
-                if (error) console.error(`[Game] 加载 ${imagePath}/spriteFrame 失败`, error);
-                return;
-            }
-            sprite.spriteFrame = frame;
-        });
-        const button = node.addComponent(Button);
-        button.transition = Button.Transition.SCALE;
-        button.zoomScale = 1.06;
-        node.on(Button.EventType.CLICK, onClick, this);
-    }
-
-    /**
      * 用游戏页背景替换场景里原来的底图。
      */
     private ensureGameBackground() {
@@ -432,15 +381,15 @@ onLoad() {
     }
 
     /**
-     * 托盘底边停在道具行上方。行数变了也只往上长，不会贴到按钮。
+     * 托盘底边停在「查看广告」上方。行数变了也只往上长。
      */
     private placeTrayAboveTools() {
         const tray = this.trayManager;
         if (!tray?.isValid) return;
         const shelfBottom = tray.getShelfBottom();
         if (shelfBottom === null) return;
-        const toolTop = this.toolsY + this.toolButtonSize / 2;
-        tray.node.setPosition(0, toolTop + this.trayToolGap - shelfBottom, 0);
+        const badgeTop = this.toolsY + this.toolButtonSize / 2 + 30;
+        tray.node.setPosition(0, badgeTop + this.trayToolGap - shelfBottom, 0);
         const canvas = this.node.parent;
         const viewport = canvas?.getChildByName('BoardViewport');
         if (canvas && viewport) this.raiseChromeAboveBoard(canvas, viewport);
@@ -463,8 +412,6 @@ onLoad() {
     private raiseChromeAboveBoard(canvas: Node, viewport: Node) {
         const chrome = [
             this.levelLabel?.node,
-            canvas.getChildByName('HomeButton'),
-            canvas.getChildByName('GearButton'),
             canvas.getChildByName('TrayContainer'),
             canvas.getChildByName('ToolsContainer')
         ];
@@ -483,7 +430,7 @@ onLoad() {
      */
     private installViewportHitTest(area: UITransform) {
         const original = area.hitTest.bind(area);
-        const chrome = ['HomeButton', 'GearButton', 'LevelLabel', 'TrayContainer', 'ToolsContainer'];
+        const chrome = ['LevelLabel', 'TrayContainer', 'ToolsContainer'];
         area.hitTest = (screenPoint: Vec2, windowId = 0) => {
             if (!original(screenPoint, windowId)) return false;
             const canvas = area.node.parent;
@@ -522,7 +469,6 @@ onLoad() {
         }
 
         this.ensureGameBackground();
-        this.ensureCornerButtons();
 
         // Leave a clear gap above the multi-row shelf, even for tall pixel art.
         this.boardManager?.node.setPosition(0, 100, 0);
@@ -561,10 +507,12 @@ onLoad() {
             bar.build();
             this.toolsBar = bar;
             bar.onWandClick = () => this.toggleWand();
-            bar.onHintClick = () => this.useHint();
             bar.onMagnetClick = () => this.useMagnet();
-            bar.onShareClick = () => {
-                this.showFloatingTip('HintTip', localize('暂未开放', 'Not available yet'));
+            bar.onSettingsClick = () => {
+                const settings = this.settingsPanel;
+                if (!settings) return;
+                settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
+                settings.openPanel();
             };
             this.refreshRankLabel();
         }

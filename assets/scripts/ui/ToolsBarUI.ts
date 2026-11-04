@@ -36,8 +36,7 @@ export class ToolsBarUI extends Component {
         const size = 136;
         this.makeTool('MagnetButton', -214, 'ui/game/btn_lock', size);
         this.makeTool('MagicWandButton', -65, 'ui/game/btn_lock', size);
-        this.makeTool('HintButton', 84, 'ui/game/btn_temple', size);
-        this.makeShare(232, size);
+        this.makeTool('SettingsButton', 84, 'ui/game/btn_gea', size);
     }
 
     private makeTool(name: string, x: number, imagePath: string, size: number) {
@@ -69,10 +68,9 @@ export class ToolsBarUI extends Component {
             }, this);
         }
 
-        if (name === 'HintButton') {
-            this.adBadges.push(this.makeAdBadge(buttonNode));
+        if (name === 'SettingsButton') {
             buttonNode.on(Button.EventType.CLICK, () => {
-                this.onHintClick?.();
+                this.onSettingsClick?.();
             }, this);
         }
 
@@ -87,35 +85,6 @@ export class ToolsBarUI extends Component {
         const button = buttonNode.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.05;
-    }
-
-    private makeShare(x: number, size: number) {
-        const buttonNode = new Node('ShareButton');
-        buttonNode.layer = Layers.Enum.UI_2D;
-        buttonNode.parent = this.node;
-        buttonNode.setPosition(x, 0, 0);
-        buttonNode.addComponent(UITransform).setContentSize(size, size);
-
-        const icon = new Node('Icon');
-        icon.layer = Layers.Enum.UI_2D;
-        icon.parent = buttonNode;
-        icon.addComponent(UITransform).setContentSize(size, size);
-        const sprite = icon.addComponent(Sprite);
-        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load('ui/game/btn_share/spriteFrame', SpriteFrame, (err, frame) => {
-            if (err || !frame || !isValid(icon)) {
-                if (err) console.error('[Game] 加载 ui/game/btn_share/spriteFrame 失败', err);
-                return;
-            }
-            sprite.spriteFrame = frame;
-        });
-
-        const button = buttonNode.addComponent(Button);
-        button.transition = Button.Transition.SCALE;
-        button.zoomScale = 1.05;
-        buttonNode.on(Button.EventType.CLICK, () => {
-            this.onShareClick?.();
-        }, this);
     }
 
     /**

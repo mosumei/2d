@@ -9,6 +9,7 @@ const { ccclass } = _decorator;
 export class BoardGesture extends Component {
     public static swallowTap = false;
     public canInteract: (() => boolean) | null = null;
+    public onViewChanged: (() => void) | null = null;
 
     private readonly minScale = 1;
     private readonly maxScale = 5;
@@ -64,6 +65,7 @@ export class BoardGesture extends Component {
         BoardGesture.swallowTap = false;
         this.node.setScale(1, 1, 1);
         this.node.setPosition(this.rest);
+        this.onViewChanged?.();
     }
 
     private onStart(event: EventTouch): void {
@@ -158,6 +160,7 @@ export class BoardGesture extends Component {
         if (scale <= this.minScale + 0.001) {
             this.node.setScale(1, 1, 1);
             this.node.setPosition(this.rest);
+            this.onViewChanged?.();
             return;
         }
         const board = this.node.getComponent(UITransform);
@@ -170,18 +173,30 @@ export class BoardGesture extends Component {
         const frameBottom = -(frame?.anchorPoint.y ?? 0.5) * windowH;
         const anchorX = board?.anchorPoint.x ?? 0.5;
         const anchorY = board?.anchorPoint.y ?? 0.5;
-        // 棋盘比窗口小就留在里面；比窗口大就只露出窗口里的部分。两种都能上下左右拖。
-        const x = this.limitAxis(this.node.position.x, anchorX, scaledW, frameLeft, frameLeft + windowW);
-        const y = this.limitAxis(this.node.position.y, anchorY, scaledH, frameBottom, frameBottom + windowH);
+        // 四周留出半个窗口，放大后仍能把背景拖出来。
+        const x = this.limitAxis(
+            this.node.position.x, anchorX, scaledW, frameLeft, frameLeft + windowW, windowW * 0.5
+        );
+        const y = this.limitAxis(
+            this.node.position.y, anchorY, scaledH, frameBottom, frameBottom + windowH, windowH * 0.5
+        );
         this.node.setPosition(x, y, this.node.position.z);
+        this.onViewChanged?.();
     }
 
-    /** 把锚点限制在窗口边上。内容更小时贴边即停，更大时滑到对边即停。 */
-    private limitAxis(center: number, anchor: number, length: number, low: number, high: number): number {
+    /** 拼图可贴着窗口，也可以再往外移一段，露出后面的背景。 */
+    private limitAxis(
+        center: number,
+        anchor: number,
+        length: number,
+        low: number,
+        high: number,
+        inset: number
+    ): number {
         const atLow = low + anchor * length;
         const atHigh = high - (1 - anchor) * length;
-        const min = Math.min(atLow, atHigh);
-        const max = Math.max(atLow, atHigh);
+        const min = Math.min(atLow, atHigh) - inset;
+        const max = Math.max(atLow, atHigh) + inset;
         return Math.min(max, Math.max(min, center));
     }
 

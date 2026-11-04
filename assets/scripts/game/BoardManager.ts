@@ -1,6 +1,6 @@
 import {
     _decorator, Component, Prefab, SpriteFrame,
-    instantiate, UITransform, JsonAsset
+    instantiate, UITransform, JsonAsset, Graphics, Color, Node, Layers
 } from 'cc';
 
 import {
@@ -203,9 +203,99 @@ export class BoardManager extends Component {
             );
         }
 
+        this.drawOutline(rows, cols, cellSize, step);
         console.log(
             `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}`
         );
+    }
+
+    /** 沿拼图阶梯外形描一圈，线在珠子外侧。 */
+    private drawOutline(rows: number, cols: number, cellSize: number, step: number) {
+        const half = step / 2;
+        const width = Math.min(6, Math.max(2, cellSize * 0.16));
+        const out = width / 2;
+        const occupied = new Set<string>();
+        for (let row = 0; row < rows; row++) {
+            const line = this.pattern[row] ?? '';
+            for (let col = 0; col < cols; col++) {
+                if (line[col] !== '.') occupied.add(`${row},${col}`);
+            }
+        }
+        const has = (row: number, col: number) => occupied.has(`${row},${col}`);
+        type Point = { x: number; y: number };
+        type Edge = { a: Point; b: Point; n: Point };
+        const edges: Edge[] = [];
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                if (!has(row, col)) continue;
+                const x = (col - (cols - 1) / 2) * step;
+                const y = ((rows - 1) / 2 - row) * step;
+                const left = x - half;
+                const right = x + half;
+                const bottom = y - half;
+                const top = y + half;
+                if (!has(row - 1, col)) edges.push({ a: { x: left, y: top }, b: { x: right, y: top }, n: { x: 0, y: 1 } });
+                if (!has(row, col + 1)) edges.push({ a: { x: right, y: top }, b: { x: right, y: bottom }, n: { x: 1, y: 0 } });
+                if (!has(row + 1, col)) edges.push({ a: { x: right, y: bottom }, b: { x: left, y: bottom }, n: { x: 0, y: -1 } });
+                if (!has(row, col - 1)) edges.push({ a: { x: left, y: bottom }, b: { x: left, y: top }, n: { x: -1, y: 0 } });
+            }
+        }
+        if (edges.length === 0) return;
+
+        const key = (point: Point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+        const from = new Map<string, Edge[]>();
+        for (const edge of edges) {
+            const list = from.get(key(edge.a)) ?? [];
+            list.push(edge);
+            from.set(key(edge.a), list);
+        }
+        const unused = new Set(edges);
+        const loops: Edge[][] = [];
+        while (unused.size > 0) {
+            let edge = unused.values().next().value as Edge;
+            const loop: Edge[] = [];
+            while (edge && unused.has(edge)) {
+                unused.delete(edge);
+                loop.push(edge);
+                edge = (from.get(key(edge.b)) ?? []).find(item => unused.has(item)) as Edge;
+            }
+            if (loop.length > 1) loops.push(loop);
+        }
+
+        const node = new Node('BoardOutline');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = this.node;
+        const transform = node.addComponent(UITransform);
+        transform.setContentSize(cols * step, rows * step);
+        transform.hitTest = () => false;
+        const graphics = node.addComponent(Graphics);
+        graphics.lineWidth = width;
+        graphics.lineJoin = Graphics.LineJoin.ROUND;
+        graphics.lineCap = Graphics.LineCap.ROUND;
+        graphics.strokeColor = new Color(232, 112, 58, 255);
+        for (const loop of loops) {
+            const first = this.outlinePoint(loop[loop.length - 1], loop[0], out);
+            graphics.moveTo(first.x, first.y);
+            for (let index = 0; index < loop.length; index++) {
+                const point = this.outlinePoint(loop[index], loop[(index + 1) % loop.length], out);
+                graphics.lineTo(point.x, point.y);
+            }
+            graphics.close();
+            graphics.stroke();
+        }
+    }
+
+    private outlinePoint(
+        incoming: { n: { x: number; y: number } },
+        outgoing: { a: { x: number; y: number }; n: { x: number; y: number } },
+        out: number
+    ) {
+        const sx = incoming.n.x + outgoing.n.x;
+        const sy = incoming.n.y + outgoing.n.y;
+        return {
+            x: outgoing.a.x + (sx === 0 ? 0 : Math.sign(sx) * out),
+            y: outgoing.a.y + (sy === 0 ? 0 : Math.sign(sy) * out)
+        };
     }
 
     private swapInitial(

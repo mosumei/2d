@@ -103,11 +103,19 @@ export function drawSocket(node: Node, size: number, color: GemColor): void {
     polygon(g, octagon(0, -size * 0.045, size * 0.30), shade(rgb, -0.22));
 }
 
-/** 托盘空位上的浅圆角凹槽，不描边。 */
+/** 托盘空位上的圆孔，外圈压暗，上沿留阴影，下沿留亮边。 */
 export function drawShelfSocket(g: Graphics, size: number): void {
-    const well = size * 0.62;
-    const radius = well * 0.32;
-    g.fillColor = new Color(255, 248, 238, 255);
-    g.roundRect(-well / 2, -well / 2, well, well, radius);
+    const radius = size * 0.42;
+    g.fillColor = new Color(168, 132, 92, 255);
+    g.circle(0, 0, radius);
+    g.fill();
+    g.fillColor = new Color(255, 232, 206, 255);
+    g.circle(0, -radius * 0.12, radius * 0.76);
+    g.fill();
+    g.fillColor = new Color(255, 252, 246, 255);
+    g.circle(0, -radius * 0.38, radius * 0.58);
+    g.fill();
+    g.fillColor = new Color(255, 236, 214, 255);
+    g.circle(0, -radius * 0.18, radius * 0.52);
     g.fill();
 }
