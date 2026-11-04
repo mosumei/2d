@@ -6,7 +6,8 @@ import {
     tween,
     Tween,
     UIOpacity,
-    UITransform
+    UITransform,
+    Vec3
 } from 'cc';
 
 import { BoardManager } from './BoardManager';
@@ -40,6 +41,71 @@ export class GemCompletionShine {
             await this.playWaveShine(cells, cancelled);
         } finally {
             this.clearNodes();
+        }
+    }
+
+    /**
+     * 通关撒花。彩纸从左右两侧洒到当前成品上，不盖遮罩。
+     * @param canvas 游戏画布
+     * @param cancelled 关卡被切走时返回 true
+     */
+    public async playConfetti(canvas: Node | null, cancelled: () => boolean): Promise<void> {
+        if (!canvas?.isValid || cancelled()) return;
+        const layer = new Node('Confetti');
+        layer.layer = Layers.Enum.UI_2D;
+        layer.parent = canvas;
+        layer.setSiblingIndex(canvas.children.length - 1);
+        layer.addComponent(UITransform).setContentSize(720, 1280);
+        const layerHit = layer.getComponent(UITransform);
+        if (layerHit) layerHit.hitTest = () => false;
+
+        const colors = [
+            new Color(255, 126, 176, 255),
+            new Color(86, 214, 206, 255),
+            new Color(176, 132, 255, 255),
+            new Color(126, 214, 146, 255),
+            new Color(255, 206, 92, 255),
+            new Color(255, 255, 255, 255)
+        ];
+        for (let index = 0; index < 48; index++) {
+            const piece = new Node('Piece');
+            piece.layer = Layers.Enum.UI_2D;
+            piece.parent = layer;
+            const width = 8 + Math.random() * 8;
+            const height = 12 + Math.random() * 10;
+            piece.addComponent(UITransform).setContentSize(width, height);
+            const graphics = piece.addComponent(Graphics);
+            graphics.fillColor = colors[index % colors.length];
+            graphics.roundRect(-width / 2, -height / 2, width, height, 2);
+            graphics.fill();
+            const fromLeft = index % 2 === 0;
+            const startX = fromLeft ? -460 - Math.random() * 40 : 460 + Math.random() * 40;
+            const startY = -120 + Math.random() * 760;
+            const endX = (Math.random() - 0.5) * 460;
+            const endY = startY - (140 + Math.random() * 260);
+            piece.setPosition(startX, startY, 0);
+            piece.angle = Math.random() * 360;
+            const opacity = piece.addComponent(UIOpacity);
+            opacity.opacity = 255;
+            const spin = piece.angle + (Math.random() - 0.5) * 540;
+            const delay = Math.random() * 0.28;
+            tween(piece)
+                .delay(delay)
+                .to(1.05, {
+                    position: new Vec3(endX, endY, 0),
+                    angle: spin
+                }, { easing: 'sineOut' })
+                .start();
+            tween(opacity)
+                .delay(delay + 0.72)
+                .to(0.4, { opacity: 0 })
+                .start();
+        }
+
+        try {
+            await this.wait(0.72, cancelled);
+        } finally {
+            if (cancelled() && layer.isValid) layer.destroy();
         }
     }
 

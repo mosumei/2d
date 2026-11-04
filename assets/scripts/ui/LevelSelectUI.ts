@@ -172,6 +172,7 @@ export class LevelSelectUI extends Component {
             `[LevelSelectUI] 选择 LEVEL ${level}`
         );
 
+        LevelSession.allowGameEntry();
         director.loadScene('Game');
     }
 

@@ -55,6 +55,7 @@ export class MainMenuUI extends Component {
     onLoad() {
         if (PREVIEW && typeof location !== 'undefined' &&
             /^[1-7]$/.test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
+            LevelSession.allowGameEntry();
             director.loadScene('Game');
             return;
         }
@@ -300,6 +301,7 @@ export class MainMenuUI extends Component {
         if (panel?.active) return;
 
         this.isStarting = true;
+        LevelSession.allowGameEntry();
         director.loadScene('Game');
     }
 

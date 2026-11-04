@@ -1,6 +1,8 @@
 
 import { director } from 'cc';
 
+import { LevelSession } from './LevelSession';
+
 export class SceneRouter {
 
     static goHome() {
@@ -8,6 +10,7 @@ export class SceneRouter {
     }
 
     static startGame() {
+        LevelSession.allowGameEntry();
         director.loadScene('Game');
     }
 
@@ -16,6 +19,7 @@ export class SceneRouter {
     }
 
     static restartGame() {
+        LevelSession.allowGameEntry();
         director.loadScene('Game');
     }
 

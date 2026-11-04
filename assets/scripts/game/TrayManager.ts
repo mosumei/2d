@@ -2,7 +2,7 @@
 import {
     _decorator, Component, EventTouch, Node, UITransform,
     Graphics, Sprite, SpriteFrame, Color, Layers,
-    Tween, tween, Vec3, Label, resources
+    Tween, tween, Vec3, Label, resources, UIOpacity
 } from 'cc';
 
 import type { GemColor } from './GemCell';
@@ -134,6 +134,66 @@ public resetTray(capacity: number): Promise<void> {
 
         this.resizeShelf();
         return opened * step;
+    }
+
+    /**
+     * 完成一块同色区域时加一行空槽。新孔逐个弹出，托盘底板闪一下。
+     * @param rows 要加的行数
+     */
+    public grantRows(rows: number) {
+        if (!this.isValid || rows <= 0 || this.slots.length === 0) return;
+        const start = this.slots.length;
+        this.addSlots(rows * 12);
+        const fresh = this.slots.slice(start);
+        fresh.forEach((slot, index) => {
+            if (!slot?.isValid) return;
+            slot.setScale(0.2, 0.2, 1);
+            const opacity = slot.getComponent(UIOpacity) ?? slot.addComponent(UIOpacity);
+            opacity.opacity = 0;
+            const delay = index * 0.028;
+            tween(slot)
+                .delay(delay)
+                .to(0.24, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+                .start();
+            tween(opacity)
+                .delay(delay)
+                .to(0.16, { opacity: 255 })
+                .start();
+        });
+        this.flashShelf();
+    }
+
+    /** 托盘底板快速闪白，表示刚加了一排孔。 */
+    private flashShelf() {
+        const shelf = this.node.getChildByName('Shelf');
+        const shelfUi = shelf?.getComponent(UITransform);
+        if (!shelf?.isValid || !shelfUi) return;
+        const previous = shelf.getChildByName('ShelfFlash');
+        if (previous?.isValid) previous.destroy();
+
+        const flash = new Node('ShelfFlash');
+        flash.layer = Layers.Enum.UI_2D;
+        flash.parent = shelf;
+        flash.setSiblingIndex(0);
+        const width = shelfUi.contentSize.width;
+        const height = shelfUi.contentSize.height;
+        flash.addComponent(UITransform).setContentSize(width, height);
+        const graphics = flash.addComponent(Graphics);
+        const radius = Math.min(36, height * 0.42);
+        graphics.fillColor = new Color(255, 255, 255, 255);
+        graphics.roundRect(-width / 2, -height / 2, width, height, radius);
+        graphics.fill();
+        const opacity = flash.addComponent(UIOpacity);
+        opacity.opacity = 0;
+        const transform = flash.getComponent(UITransform);
+        if (transform) transform.hitTest = () => false;
+        tween(opacity)
+            .to(0.08, { opacity: 170 })
+            .to(0.28, { opacity: 0 })
+            .call(() => {
+                if (flash.isValid) flash.destroy();
+            })
+            .start();
     }
 
     /**

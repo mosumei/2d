@@ -2,7 +2,7 @@
 import {
     _decorator, Component, Label, Sprite, SpriteFrame,
     director, Node, Layers, Button, UITransform, Vec2,
-    Graphics, Color, resources, isValid, UIOpacity, Mask, tween, JsonAsset
+    Graphics, Color, resources, isValid, UIOpacity, Mask, JsonAsset
 } from 'cc';
 
 import { PREVIEW } from 'cc/env';
@@ -147,12 +147,20 @@ export class GameManager extends Component {
     @property
     debugStartLevel = 0;
 
+    private redirectedHome = false;
+
     private currentLevelData: LevelData | null = null;
     @property(AudioManager)
 audioManager: AudioManager | null = null;
 
 
 onLoad() {
+    if (!LevelSession.takeGameEntry() && this.readPreviewLevel() === 0) {
+        this.redirectedHome = true;
+        director.loadScene('MainMenu');
+        return;
+    }
+
     if (!this.levelManager) {
         this.levelManager = this.getComponent(LevelManager)
             ?? this.addComponent(LevelManager);
@@ -446,14 +454,19 @@ onLoad() {
     }
 
 
+    /** 预览地址里的 preview-level。没有时是 0。 */
+    private readPreviewLevel(): number {
+        if (!PREVIEW || typeof location === 'undefined') return 0;
+        const requested = Number(new URLSearchParams(location.search).get('preview-level'));
+        if (Number.isInteger(requested) && requested >= 1 && requested <= 7) return requested;
+        return 0;
+    }
+
     start() {
+        if (this.redirectedHome) return;
         // 地址带 preview-level 时才指定关卡。否则预览和正式包都按存档进入下一关。
-        if (PREVIEW && typeof location !== 'undefined') {
-            const requested = Number(new URLSearchParams(location.search).get('preview-level'));
-            if (Number.isInteger(requested) && requested >= 1 && requested <= 7) {
-                this.debugStartLevel = requested;
-            }
-        }
+        const requested = this.readPreviewLevel();
+        if (requested > 0) this.debugStartLevel = requested;
         const preview = this.node.parent
             ?.getChildByName('TargetPreview');
         if (preview) preview.active = false;
@@ -1800,13 +1813,16 @@ onLoad() {
 
     private flashCompletedRegions(): void {
         const token = this.finishToken;
+        let granted = 0;
         for (const region of this.targetRegions) {
             if (this.flashedRegions.has(region) || !region.every(cell => cell.isValid && cell.isCorrect())) continue;
             this.flashedRegions.add(region);
             const task = new GemCompletionShine().playRegion(region,
                 () => !this.isValid || token !== this.finishToken);
             this.regionShines.push(task);
+            granted += 1;
         }
+        if (granted > 0) this.trayManager?.grantRows(granted);
     }
 
     private runMoves(
@@ -2235,7 +2251,7 @@ onLoad() {
             await ready;
             if (cancelled()) return;
             const canvas = this.node.parent;
-            if (canvas?.isValid) await this.fadeCanvas(canvas, 0, 0.32);
+            await new GemCompletionShine().playConfetti(canvas, cancelled);
             if (cancelled()) return;
             director.loadScene('MainMenu');
         });
@@ -2278,16 +2294,6 @@ onLoad() {
 
     private preloadJson(path: string): Promise<void> {
         return new Promise(resolve => resources.preload(path, JsonAsset, () => resolve()));
-    }
-
-    private fadeCanvas(canvas: Node, opacity: number, seconds: number): Promise<void> {
-        const component = canvas.getComponent(UIOpacity) ?? canvas.addComponent(UIOpacity);
-        return new Promise(resolve => {
-            tween(component)
-                .to(seconds, { opacity }, { easing: 'sineInOut' })
-                .call(() => resolve())
-                .start();
-        });
     }
 
     /**

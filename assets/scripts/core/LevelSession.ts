@@ -106,6 +106,24 @@ export class LevelSession {
         this.selectedLevel = null;
     }
 
+    private static gameEntryAllowed = false;
+
+    /**
+     * 从首页或选关进入游戏。直接打开游戏场景时不会放行。
+     */
+    public static allowGameEntry(): void {
+        this.gameEntryAllowed = true;
+    }
+
+    /**
+     * 读取并清掉这次进入许可。只在游戏场景启动时调用一次。
+     */
+    public static takeGameEntry(): boolean {
+        const allowed = this.gameEntryAllowed;
+        this.gameEntryAllowed = false;
+        return allowed;
+    }
+
     /**
      * 首页开始按钮要进的关卡。刚通关的那一关不再重复，改为下一关。
      */
