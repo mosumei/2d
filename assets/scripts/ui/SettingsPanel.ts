@@ -57,6 +57,7 @@ export class SettingsPanel extends Component {
     public onSave: (() => void) | null = null;
 
     private pauseBuilt = false;
+    private dimCloses = false;
     private pauseTitle: Label | null = null;
     private saveTitle: Label | null = null;
     private homeTitle: Label | null = null;
@@ -86,6 +87,11 @@ export class SettingsPanel extends Component {
     public closePanel() {
         this.audioManager?.playClick();
         this.node.active = false;
+    }
+
+    /** 点到弹窗以外的遮罩时关闭。卡片和按钮在遮罩上面，不会走到这里。 */
+    private closeFromDim() {
+        this.closePanel();
     }
 
     /**
@@ -177,6 +183,37 @@ export class SettingsPanel extends Component {
             }
             const sprite = dim.getComponent(Sprite);
             if (sprite) sprite.enabled = false;
+            dim.getComponent(Graphics)?.destroy();
+            dim.setSiblingIndex(0);
+
+            // 图片节点上再画矩形不会显示。遮罩单独放一个只有绘图的节点，并大于屏幕，四角不透。
+            const width = 1080;
+            const height = 1920;
+            dim.getComponent(UITransform)?.setContentSize(width, height);
+            let shade = dim.getChildByName('DimShade');
+            if (!shade) {
+                shade = new Node('DimShade');
+                shade.layer = Layers.Enum.UI_2D;
+                shade.parent = dim;
+                shade.addComponent(UITransform);
+                shade.addComponent(Graphics);
+            }
+            const shadeTransform = shade.getComponent(UITransform);
+            if (shadeTransform) {
+                shadeTransform.setContentSize(width, height);
+                shadeTransform.hitTest = () => false;
+            }
+            const graphics = shade.getComponent(Graphics);
+            if (graphics) {
+                graphics.clear();
+                graphics.fillColor = new Color(0, 0, 0, 130);
+                graphics.rect(-width / 2, -height / 2, width, height);
+                graphics.fill();
+            }
+            if (!this.dimCloses) {
+                this.dimCloses = true;
+                dim.on(Node.EventType.TOUCH_END, this.closeFromDim, this);
+            }
         }
 
         if (this.pauseBuilt || this.node.getChildByName('PauseRoot')) {

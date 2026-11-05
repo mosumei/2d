@@ -509,9 +509,6 @@ onLoad() {
         // 地址带 preview-level 时才指定关卡。否则预览和正式包都按存档进入下一关。
         const requested = this.readPreviewLevel();
         if (requested > 0) this.debugStartLevel = requested;
-        const preview = this.node.parent
-            ?.getChildByName('TargetPreview');
-        if (preview) preview.active = false;
 
         if (this.boardManager) {
             this.boardManager.node.active = true;
@@ -1751,7 +1748,7 @@ onLoad() {
                 from: pair.source.gemSprite?.node ?? pair.source.node,
                 to: pair.dest.node,
                 endSize: gemDrawSize(sourceColor, pair.dest.getDisplaySize()),
-                delay: index * 0.05,
+                delay: index * 0.07,
                 onDepart: () => pair.source.setCurrentColor(null),
                 onArrive: () => {
                     pair.dest.setCurrentColor(sourceColor);
@@ -1805,7 +1802,7 @@ onLoad() {
                 from: sourceGem,
                 to: pair.dest.node,
                 endSize: gemDrawSize(color, pair.dest.getDisplaySize()),
-                delay: index * 0.05,
+                delay: index * 0.07,
                 onDepart: () => tray.setGemAt(pair.slot, null),
                 onArrive: () => {
                     pair.dest.setCurrentColor(color);

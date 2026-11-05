@@ -117,11 +117,13 @@ export class MainMenuUI extends Component {
                 if (error) console.error(`[MainMenu] 加载 ${image}/spriteFrame 失败`, error);
                 return;
             }
+            sprite.trim = false;
             sprite.spriteFrame = loaded;
             const source = loaded.originalSize;
             const width = source.width > 0 ? source.width : 300;
             const height = source.height > 0 ? source.height : 340;
-            const scale = Math.min(240 / width, 280 / height);
+            // 按原图宽高同一比例缩小，并小于花瓣内圈，四周留出空隙。
+            const scale = Math.min(180 / width, 210 / height);
             node.getComponent(UITransform)?.setContentSize(width * scale, height * scale);
         });
     }

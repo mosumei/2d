@@ -5,8 +5,10 @@ export interface CollectedArtifact {
     collectedAt: string;
 }
 
-// 路径不带 resources/ 和后缀；后续关卡在这里增加配置。
-export const ARTIFACTS: Record<number, { name: string; nameEn: string; image: string }> = {};
+// 路径不带 resources/ 和后缀。有成品图的关卡才登记，首页花瓣框优先用这张图。
+export const ARTIFACTS: Record<number, { name: string; nameEn: string; image: string }> = {
+    2: { name: '深蓝高脚杯', nameEn: 'Blue Goblet', image: 'artifacts/level_02' }
+};
 
 export class ArtifactCollectionManager {
     private static readonly KEY = 'jewel_restored_artifacts_v1';

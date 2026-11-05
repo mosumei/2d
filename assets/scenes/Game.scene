@@ -74,9 +74,6 @@
         "__id__": 5
       },
       {
-        "__id__": 8
-      },
-      {
         "__id__": 12
       },
       {
@@ -354,9 +351,7 @@
     "_name": "TargetPreview",
     "_objFlags": 0,
     "__editorExtras__": {},
-    "_parent": {
-      "__id__": 2
-    },
+    "_parent": null,
     "_children": [],
     "_active": false,
     "_components": [
@@ -365,9 +360,6 @@
       },
       {
         "__id__": 10
-      },
-      {
-        "__id__": 11
       }
     ],
     "_prefab": null,
@@ -442,10 +434,7 @@
       "b": 255,
       "a": 255
     },
-    "_spriteFrame": {
-      "__uuid__": "8c1b255d-ad7d-4166-b6c9-c3a9dde46eb3@f9941",
-      "__expectedType__": "cc.SpriteFrame"
-    },
+    "_spriteFrame": null,
     "_type": 0,
     "_fillType": 0,
     "_sizeMode": 0,
@@ -462,26 +451,8 @@
     "_id": "b6I/Ae6INK7KINqpKorIYX"
   },
   {
-    "__type__": "769283GRwZHpK3Nms1ep5DI",
-    "_name": "",
-    "_objFlags": 0,
-    "__editorExtras__": {},
-    "node": {
-      "__id__": 8
-    },
-    "_enabled": true,
-    "__prefab": null,
-    "artwork": {
-      "__uuid__": "8c1b255d-ad7d-4166-b6c9-c3a9dde46eb3@f9941",
-      "__expectedType__": "cc.SpriteFrame"
-    },
-    "levelData": null,
-    "blueGem": null,
-    "whiteGem": null,
-    "exactMode": false,
-    "maxDisplayWidth": 580,
-    "maxDisplayHeight": 740,
-    "_id": "v1ArtVasePreview01"
+    "__type__": "cc.CompPrefabInfo",
+    "fileId": "v1ArtVasePreview01"
   },
   {
     "__type__": "cc.Node",

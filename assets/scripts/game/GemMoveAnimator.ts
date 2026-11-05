@@ -18,9 +18,11 @@ import type { GemColor } from './GemCell';
 
 const { ccclass } = _decorator;
 
-const LIFT_TIME = 0.06;
+const LIFT_TIME = 0.08;
 const FLIGHT_TIME = 0.22;
-const SETTLE_TIME = 0.11;
+/** 放进拼图：一列跟着飞，单颗在空中停留更久，才能看见前后珠。 */
+const PLACE_FLIGHT_TIME = 0.36;
+const SETTLE_TIME = 0.14;
 
 export interface GemMove {
     frame: SpriteFrame | null;
@@ -113,10 +115,11 @@ export class GemMoveAnimator extends Component {
             flyer.setPosition(startPos);
 
             const endScale = shot.endSize / shot.size;
-            const lifted = new Vec3(1.12, 1.12, 1);
+            const lifted = new Vec3(sequential ? 1.12 : 1.22, sequential ? 1.12 : 1.22, 1);
             const landed = new Vec3(endScale, endScale, 1);
-            const squash = new Vec3(endScale * 1.12, endScale * 0.88, 1);
+            const squash = new Vec3(endScale * 1.08, endScale * 0.9, 1);
             const delay = Math.max(0, move.delay ?? 0);
+            const flightTime = sequential ? FLIGHT_TIME : PLACE_FLIGHT_TIME;
             const sequential = move.sequential === true;
             if (delay > maxDelay) maxDelay = delay;
             const opacity = sequential ? flyer.addComponent(UIOpacity) : null;
@@ -146,26 +149,28 @@ export class GemMoveAnimator extends Component {
             } else {
                 motion.delay(delay);
             }
+            const placeControl = sequential ? control : this.placeControl(startPos, endPos);
             motion
                 .to(LIFT_TIME, { scale: lifted }, { easing: 'quadOut' })
-                .to(FLIGHT_TIME, { scale: landed }, {
-                    easing: 'sineOut',
+                .to(flightTime, { scale: landed }, {
+                    easing: 'sineInOut',
                     onUpdate: (_target, ratio) => {
                         if (!flyer.isValid) return;
                         const t = ratio ?? 0;
                         const u = 1 - t;
                         flyer.setPosition(
-                            u * u * startPos.x + 2 * u * t * control.x + t * t * endPos.x,
-                            u * u * startPos.y + 2 * u * t * control.y + t * t * endPos.y,
+                            u * u * startPos.x + 2 * u * t * placeControl.x + t * t * endPos.x,
+                            u * u * startPos.y + 2 * u * t * placeControl.y + t * t * endPos.y,
                             0
                         );
                     }
                 })
                 .call(() => {
                     if (flyer.isValid) flyer.setPosition(endPos);
+                    if (!sequential) this.sheen(endPos, shot.endSize);
                 })
-                .to(0.05, { scale: squash }, { easing: 'quadOut' })
-                .to(0.06, { scale: landed }, { easing: 'sineOut' })
+                .to(0.06, { scale: squash }, { easing: 'quadOut' })
+                .to(0.08, { scale: landed }, { easing: 'sineOut' })
                 .call(() => {
                     this.scheduleOnce(() => {
                         if (!flyer.isValid) return;
@@ -184,7 +189,7 @@ export class GemMoveAnimator extends Component {
 
         this.scheduleOnce(
             watchdog,
-            LIFT_TIME + FLIGHT_TIME + SETTLE_TIME + maxDelay + 0.35
+            LIFT_TIME + PLACE_FLIGHT_TIME + SETTLE_TIME + maxDelay + 0.35
         );
     }
 
@@ -327,6 +332,25 @@ export class GemMoveAnimator extends Component {
     /**
      * 飞行中点往侧面拱起，形成一条平滑短弧线。
      */
+    /** 放进拼图几乎沿直线，只带一点弧，前后珠才叠成一列。 */
+    private placeControl(start: Vec3, end: Vec3): Vec3 {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const len = Math.hypot(dx, dy) || 1;
+        let nx = -dy / len;
+        let ny = dx / len;
+        if (ny < 0) {
+            nx = -nx;
+            ny = -ny;
+        }
+        const arc = Math.min(16, Math.max(6, len * 0.04));
+        return new Vec3(
+            (start.x + end.x) / 2 + nx * arc,
+            (start.y + end.y) / 2 + ny * arc,
+            0
+        );
+    }
+
     private arcControl(start: Vec3, end: Vec3): Vec3 {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
@@ -383,6 +407,34 @@ export class GemMoveAnimator extends Component {
         sprite.color = Color.WHITE;
         if (color) drawBead(flyer, size, color);
         return flyer;
+    }
+
+    /**
+     * 归位棋子表面的一小块高光，不超出珠子。按落地顺序各闪一次。
+     */
+    private sheen(at: Vec3, beadSize: number): void {
+        const node = new Node('LandSheen');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = this.node;
+        const size = Math.max(8, beadSize);
+        node.setPosition(at.x - size * 0.08, at.y + size * 0.1, 0);
+        node.addComponent(UITransform).setContentSize(size, size);
+        const graphics = node.addComponent(Graphics);
+        const length = size * 0.22;
+        graphics.lineWidth = Math.max(1.6, size * 0.07);
+        graphics.lineCap = Graphics.LineCap.ROUND;
+        graphics.strokeColor = new Color(255, 255, 255, 220);
+        graphics.moveTo(-length, length * 0.35);
+        graphics.lineTo(length * 0.15, -length * 0.2);
+        graphics.stroke();
+        const opacity = node.addComponent(UIOpacity);
+        opacity.opacity = 255;
+        tween(opacity).to(0.16, { opacity: 0 }, { easing: 'sineIn' }).start();
+        this.scheduleOnce(() => {
+            if (!node.isValid) return;
+            Tween.stopAllByTarget(opacity);
+            node.destroy();
+        }, 0.18);
     }
 
     /**

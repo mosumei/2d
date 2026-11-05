@@ -63,6 +63,7 @@ public getFirstEmptySlot(): number {
     private liftedSlots: number[] = [];
     private tileFrames: TileFrames = {};
     private wellFrame: SpriteFrame | null = null;
+    private faintWellFrame: SpriteFrame | null = null;
 
     private slotSize = 60;
     private wellSize = 54;
@@ -87,15 +88,21 @@ public resetTray(capacity: number): Promise<void> {
 }
 
     private loadWell(): Promise<void> {
-        if (this.wellFrame) return Promise.resolve();
+        return Promise.all([
+            this.loadWellFrame('ui/game/socket_well/spriteFrame', frame => { this.wellFrame = frame; }),
+            this.loadWellFrame('ui/game/socket_well_faint/spriteFrame', frame => { this.faintWellFrame = frame; })
+        ]).then(() => undefined);
+    }
+
+    private loadWellFrame(path: string, assign: (frame: SpriteFrame) => void): Promise<void> {
         return new Promise(resolve => {
-            resources.load('ui/game/socket_well/spriteFrame', SpriteFrame, (error, frame) => {
+            resources.load(path, SpriteFrame, (error, frame) => {
                 if (error || !frame) {
-                    if (error) console.error('[Tray] 加载 ui/game/socket_well/spriteFrame 失败', error);
+                    if (error) console.error(`[Tray] 加载 ${path} 失败`, error);
                     resolve();
                     return;
                 }
-                this.wellFrame = frame;
+                assign(frame);
                 resolve();
             });
         });
@@ -374,6 +381,15 @@ public resetTray(capacity: number): Promise<void> {
             button.zoomScale = 1.05;
             pill.on(Button.EventType.CLICK, this.onAddPillClick, this);
         }
+        pill.getChildByName('FaintWell')?.setPosition(-56, 0, 0);
+        pill.getChildByName('FaintWell')?.getComponent(UITransform)?.setContentSize(22, 22);
+        pill.getChildByName('PlusLabel')?.setPosition(-16, 0, 0);
+        pill.getChildByName('Divider')?.setPosition(16, 0, 0);
+        const icon = pill.getChildByName('FilmIcon');
+        if (icon) {
+            icon.setPosition(50, 0, 0);
+            icon.getComponent(UITransform)?.setContentSize(42, 34);
+        }
         pill.setPosition(0, -barHeight / 2 - this.addPillHeight / 2 + 12, 0);
     }
 
@@ -382,47 +398,52 @@ public resetTray(capacity: number): Promise<void> {
         if (this.watchingAd || (this.canWatchAd && !this.canWatchAd())) return;
         this.watchingAd = true;
         this.showWatchedTip();
-        this.grantSlots(3);
         this.scheduleOnce(() => {
+            if (!this.isValid) return;
+            if (this.slots.length < this.maxSlots) this.grantSlots(3);
             this.watchingAd = false;
-        }, 1.2);
+        }, 0.6);
     }
 
-    /** 假广告结束后的短提示。 */
+    /** 先弹出「已查看广告」，稍后再加孔。挂在画布上，样式与「已保存」一致。 */
     private showWatchedTip() {
-        const canvas = this.node.parent?.parent;
+        const canvas = this.node.parent;
         if (!canvas?.isValid) return;
         const previous = canvas.getChildByName('WatchedAdTip');
         if (previous?.isValid) previous.destroy();
         const tip = new Node('WatchedAdTip');
         tip.layer = Layers.Enum.UI_2D;
         tip.parent = canvas;
-        tip.setPosition(0, 280, 0);
+        tip.setPosition(0, 360, 0);
         tip.setSiblingIndex(canvas.children.length - 1);
         const transform = tip.addComponent(UITransform);
-        transform.setContentSize(280, 72);
+        transform.setContentSize(640, 96);
         transform.hitTest = () => false;
         const graphics = tip.addComponent(Graphics);
-        graphics.fillColor = new Color(255, 248, 236, 245);
-        graphics.roundRect(-140, -36, 280, 72, 18);
+        graphics.fillColor = new Color(255, 248, 235, 245);
+        graphics.roundRect(-300, -44, 600, 88, 18);
         graphics.fill();
+        graphics.strokeColor = new Color(196, 142, 64, 255);
+        graphics.lineWidth = 3;
+        graphics.roundRect(-300, -44, 600, 88, 18);
+        graphics.stroke();
         const labelNode = new Node('Label');
         labelNode.layer = Layers.Enum.UI_2D;
         labelNode.parent = tip;
-        labelNode.addComponent(UITransform).setContentSize(240, 40);
+        labelNode.addComponent(UITransform).setContentSize(560, 72);
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
         label.string = '已查看广告';
-        label.fontSize = 26;
+        label.fontSize = 24;
         label.lineHeight = 32;
         label.isBold = true;
-        label.color = new Color(120, 78, 36, 255);
+        label.color = new Color(92, 58, 32, 255);
         label.horizontalAlign = Label.HorizontalAlign.CENTER;
         label.verticalAlign = Label.VerticalAlign.CENTER;
         this.scheduleOnce(() => {
             if (tip.isValid) tip.destroy();
-        }, 1.2);
+        }, 1.6);
     }
 
     /** 虚线框紧跟在最后一个插槽后面，排满就换到下一行最左边。 */
@@ -463,6 +484,41 @@ public resetTray(capacity: number): Promise<void> {
         dash.setSiblingIndex(this.node.children.length - 1);
         const graphics = dash.getComponent(Graphics);
         if (graphics) this.paintDashedRoundRect(graphics, width, height, Math.min(14, height / 2));
+        this.paintGhostWells(dash, span, column, columnX, centerX);
+    }
+
+    /** 虚线框里放即将解锁的浅色插槽，用单独的浅图，并且点不中。 */
+    private paintGhostWells(
+        dash: Node,
+        span: number,
+        column: number,
+        columnX: (col: number) => number,
+        centerX: number
+    ) {
+        const size = this.wellSize > 0 ? this.wellSize : Math.round(this.slotSize * 0.9);
+        for (let index = 0; index < 3; index++) {
+            const name = `GhostWell_${index}`;
+            let well = dash.getChildByName(name);
+            if (index >= span) {
+                if (well) well.active = false;
+                continue;
+            }
+            if (!well) {
+                well = new Node(name);
+                well.layer = Layers.Enum.UI_2D;
+                well.parent = dash;
+                const transform = well.addComponent(UITransform);
+                transform.hitTest = () => false;
+                const sprite = well.addComponent(Sprite);
+                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                sprite.color = Color.WHITE;
+            }
+            well.active = true;
+            well.getComponent(UITransform)?.setContentSize(size, size);
+            const sprite = well.getComponent(Sprite);
+            if (sprite && this.faintWellFrame) sprite.spriteFrame = this.faintWellFrame;
+            well.setPosition(columnX(column + index) - centerX, 0, 0);
+        }
     }
 
     private paintDashedRoundRect(graphics: Graphics, width: number, height: number, radius: number) {
@@ -547,18 +603,15 @@ public resetTray(capacity: number): Promise<void> {
         );
         graphics.stroke();
 
-        const pearl = new Node('Pearl');
-        pearl.layer = Layers.Enum.UI_2D;
-        pearl.parent = pill;
-        pearl.setPosition(-58, 0, 0);
-        pearl.addComponent(UITransform).setContentSize(18, 18);
-        const pearlGraphics = pearl.addComponent(Graphics);
-        pearlGraphics.fillColor = new Color(255, 244, 220, 255);
-        pearlGraphics.circle(0, 0, 8);
-        pearlGraphics.fill();
-        pearlGraphics.fillColor = new Color(255, 255, 255, 190);
-        pearlGraphics.circle(-2, 2, 3);
-        pearlGraphics.fill();
+        const well = new Node('FaintWell');
+        well.layer = Layers.Enum.UI_2D;
+        well.parent = pill;
+        well.setPosition(-56, 0, 0);
+        well.addComponent(UITransform).setContentSize(22, 22);
+        const wellSprite = well.addComponent(Sprite);
+        wellSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        wellSprite.color = Color.WHITE;
+        if (this.faintWellFrame) wellSprite.spriteFrame = this.faintWellFrame;
 
         const labelNode = new Node('PlusLabel');
         labelNode.layer = Layers.Enum.UI_2D;
@@ -568,7 +621,7 @@ public resetTray(capacity: number): Promise<void> {
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
-        label.string = '+12';
+        label.string = '+3';
         label.fontSize = 22;
         label.lineHeight = 26;
         label.isBold = true;
@@ -579,7 +632,7 @@ public resetTray(capacity: number): Promise<void> {
         const divider = new Node('Divider');
         divider.layer = Layers.Enum.UI_2D;
         divider.parent = pill;
-        divider.setPosition(22, 0, 0);
+        divider.setPosition(16, 0, 0);
         divider.addComponent(UITransform).setContentSize(2, 18);
         const dividerGraphics = divider.addComponent(Graphics);
         dividerGraphics.fillColor = new Color(255, 252, 245, 180);
@@ -589,8 +642,8 @@ public resetTray(capacity: number): Promise<void> {
         const icon = new Node('FilmIcon');
         icon.layer = Layers.Enum.UI_2D;
         icon.parent = pill;
-        icon.setPosition(52, 0, 0);
-        icon.addComponent(UITransform).setContentSize(36, 24);
+        icon.setPosition(50, 0, 0);
+        icon.addComponent(UITransform).setContentSize(42, 34);
         const sprite = icon.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         resources.load('ui/game/icon_film/spriteFrame', SpriteFrame, (error, frame) => {
