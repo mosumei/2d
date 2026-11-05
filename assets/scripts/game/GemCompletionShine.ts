@@ -13,7 +13,7 @@ import {
 import { BoardManager } from './BoardManager';
 import { GemCell } from './GemCell';
 
-const WAVE_SPAN = 0.75;
+const WAVE_SPAN = 1.6;
 
 /**
  * 拼图完成后的闪耀。只在棋子上加临时高光，不改棋盘颜色。
@@ -112,7 +112,7 @@ export class GemCompletionShine {
     /** A connected target-color region shines as soon as its last bead lands. */
     public async playRegion(cells: GemCell[], cancelled: () => boolean): Promise<void> {
         try {
-            await Promise.all(cells.map(cell => this.flash(cell, 240, 0.38, cancelled)));
+            await Promise.all(cells.map(cell => this.flash(cell, 240, 0.8, cancelled)));
         } finally {
             this.clearNodes();
         }
@@ -126,7 +126,7 @@ export class GemCompletionShine {
             const delay = ((orders[index] - min) / span) * WAVE_SPAN;
             return this.wait(delay, cancelled).then(() => {
                 if (cancelled()) return;
-                return this.flash(cell, 245, 0.22, cancelled);
+                return this.flash(cell, 245, 0.45, cancelled);
             });
         });
         await Promise.all(jobs);

@@ -1,12 +1,14 @@
 import { Color, Graphics, Layers, Node, Sprite, UITransform } from 'cc';
 import type { GemColor } from './GemCell';
 
-// Yellow, blue, red, black, green and pink use the imported spheres.
-// White and gray stay vector beads because the new set has no matching art.
+// 灰色没有切图，仍画矢量珠。其余颜色用 gems/ 里的珠子。
 export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
-    yellow: [246, 187, 48], blue: [57, 109, 220], red: [242, 91, 70],
-    black: [65, 80, 91], white: [224, 216, 196], pink: [245, 139, 179],
-    green: [67, 190, 137], gray: [143, 147, 140]
+    yellow: [230, 190, 40], blue: [40, 80, 200], red: [210, 40, 40],
+    black: [40, 48, 46], white: [236, 236, 236], pink: [180, 40, 110],
+    green: [40, 160, 70], gray: [143, 147, 140],
+    darkRed: [160, 40, 32], orange: [230, 110, 30], brown: [170, 110, 50],
+    olive: [170, 180, 50], teal: [40, 140, 140], navy: [30, 50, 140],
+    purple: [120, 50, 180]
 };
 export type GemPalette = Partial<Record<GemColor, [number, number, number]>>;
 let activePalette: Record<GemColor, [number, number, number]> = { ...BEAD_COLORS };
@@ -17,12 +19,28 @@ export function configureGemPalette(palette?: GemPalette): void {
 }
 
 const ILLUSTRATED: ReadonlySet<GemColor> = new Set([
-    'yellow', 'blue', 'red', 'black', 'green', 'pink'
+    'yellow', 'blue', 'red', 'black', 'white', 'pink', 'green',
+    'darkRed', 'orange', 'brown', 'olive', 'teal', 'navy', 'purple'
 ]);
 
 /** True when this color should show the imported sphere instead of a vector bead. */
 export function usesIllustratedGem(color: GemColor): boolean {
     return ILLUSTRATED.has(color);
+}
+
+/** 插图珠相对插槽的边长。切图四周有空白，按整格绘制时珠子仍留一圈槽边。 */
+export const ILLUSTRATED_GEM_RATIO = 1;
+
+/** 灰色矢量珠相对格子的边长。 */
+export const VECTOR_GEM_RATIO = 0.72;
+
+/**
+ * 珠子画在插槽上的边长。
+ * @param color 珠子颜色
+ * @param slotSize 插槽边长
+ */
+export function gemDrawSize(color: GemColor, slotSize: number): number {
+    return slotSize * (usesIllustratedGem(color) ? ILLUSTRATED_GEM_RATIO : VECTOR_GEM_RATIO);
 }
 
 const beadColors = new WeakMap<Node, GemColor>();
@@ -82,6 +100,38 @@ export function drawBead(node: Node, size: number, color: GemColor): void {
     polygon(g, inner, shade(rgb, 0.09));
     polygon(g, octagon(-r * 0.20, r * 0.29, r * 0.27), shade(rgb, 0.44, 115));
 }
+const SOCKET_TILE = 180;
+
+/**
+ * 把插槽切图里的色块铺满格子，并多伸出 1 像素压住接缝。
+ * @param sprite 插槽精灵
+ * @param size 格子边长
+ */
+export function placeSocketFill(sprite: Sprite, size: number): void {
+    const frame = sprite.spriteFrame;
+    const ui = sprite.getComponent(UITransform);
+    if (!frame || !ui) return;
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.trim = true;
+    const width = frame.rect.width;
+    const height = frame.rect.height;
+    if (width < 1 || height < 1) {
+        ui.setContentSize(size, size);
+        sprite.node.setPosition(0, 0, 0);
+        return;
+    }
+    const tile = Math.min(width, SOCKET_TILE);
+    const insetX = (width - tile) / 2;
+    const insetTop = width > SOCKET_TILE ? (width - SOCKET_TILE) / 2 : 0;
+    const cover = size + 1;
+    const nodeW = cover * (width / tile);
+    const nodeH = cover * (height / tile);
+    ui.setContentSize(nodeW, nodeH);
+    const dx = (width / 2 - (insetX + tile / 2)) / width * nodeW;
+    const dy = ((insetTop + tile / 2) - height / 2) / height * nodeH;
+    sprite.node.setPosition(dx, dy, 0);
+}
+
 export function drawSocket(node: Node, size: number, color: GemColor): void {
     const sprite = node.getComponent(Sprite);
     const drawn = node.getChildByName('SocketVisual');

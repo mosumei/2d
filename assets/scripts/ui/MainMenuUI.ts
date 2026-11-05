@@ -19,24 +19,15 @@ import {
 import { PREVIEW } from 'cc/env';
 import { localize } from '../core/Locale';
 import { ARTIFACTS } from '../core/ArtifactCollectionManager';
-import { LevelSession } from '../core/LevelSession';
+import { LevelSession, MAX_LEVEL } from '../core/LevelSession';
 import { MainMenuSettings } from './MainMenuSettings';
-import { GemColor } from '../game/GemCell';
+import { GEM_COLOR_LETTERS, GemColor } from '../game/GemCell';
 import { configureGemPalette, drawBead, GemPalette } from '../game/GemVisuals';
 import { loadTileSet, TileFrames } from '../game/TileSprites';
 
 const { ccclass, property } = _decorator;
 
-const SHOWCASE_COLORS: Record<string, GemColor> = {
-    Y: 'yellow',
-    B: 'blue',
-    R: 'red',
-    K: 'black',
-    W: 'white',
-    P: 'pink',
-    G: 'green',
-    S: 'gray'
-};
+const SHOWCASE_COLORS: Record<string, GemColor> = GEM_COLOR_LETTERS;
 
 type ShowcaseLevel = {
     target: string[];
@@ -54,7 +45,7 @@ export class MainMenuUI extends Component {
 
     onLoad() {
         if (PREVIEW && typeof location !== 'undefined' &&
-            /^[1-7]$/.test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
+            new RegExp(`^[1-${MAX_LEVEL}]$`).test(new URLSearchParams(location.search).get('preview-level') ?? '')) {
             LevelSession.allowGameEntry();
             director.loadScene('Game');
             return;

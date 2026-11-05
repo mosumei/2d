@@ -12,11 +12,11 @@ import {
 } from 'cc';
 
 import { BoardGesture } from './BoardGesture';
-import { drawBead, drawSocket, usesIllustratedGem } from './GemVisuals';
+import { drawBead, drawSocket, ILLUSTRATED_GEM_RATIO, placeSocketFill, usesIllustratedGem, VECTOR_GEM_RATIO } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
-// 保留六种颜色编码，方便兼容旧关卡
+// 关卡格子用单字母。灰色没有切图，仍画矢量珠。
 export type GemColor =
     | 'yellow'
     | 'blue'
@@ -25,7 +25,32 @@ export type GemColor =
     | 'white'
     | 'pink'
     | 'green'
-    | 'gray';
+    | 'gray'
+    | 'darkRed'
+    | 'orange'
+    | 'brown'
+    | 'olive'
+    | 'teal'
+    | 'navy'
+    | 'purple';
+
+export const GEM_COLOR_LETTERS: Record<string, GemColor> = {
+    Y: 'yellow',
+    B: 'blue',
+    R: 'red',
+    K: 'black',
+    W: 'white',
+    P: 'pink',
+    G: 'green',
+    S: 'gray',
+    D: 'darkRed',
+    O: 'orange',
+    N: 'brown',
+    L: 'olive',
+    T: 'teal',
+    A: 'navy',
+    U: 'purple'
+};
 
 // 玩家可以移动的立体方块
 export type GemFrames =
@@ -44,7 +69,14 @@ export const GEM_COLORS: Record<GemColor, Color> = {
     white: new Color(255, 255, 255, 255),
     pink: new Color(255, 102, 187, 255),
     green: new Color(46, 190, 72, 255),
-    gray: new Color(143, 147, 140, 255)
+    gray: new Color(143, 147, 140, 255),
+    darkRed: new Color(160, 42, 36, 255),
+    orange: new Color(230, 112, 36, 255),
+    brown: new Color(176, 112, 48, 255),
+    olive: new Color(168, 176, 48, 255),
+    teal: new Color(36, 140, 140, 255),
+    navy: new Color(36, 58, 150, 255),
+    purple: new Color(124, 52, 176, 255)
 };
 
 @ccclass('GemCell')
@@ -147,6 +179,18 @@ export class GemCell extends Component {
         this.refreshView();
     }
 
+    private socketFill(host: Node): Node {
+        let art = host.getChildByName('SocketFill');
+        if (art) return art;
+        art = new Node('SocketFill');
+        art.layer = host.layer;
+        art.parent = host;
+        art.addComponent(UITransform);
+        const sprite = art.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        return art;
+    }
+
     public refreshView() {
         const target = this.targetColor;
         if (!target) return;
@@ -159,24 +203,29 @@ export class GemCell extends Component {
             ?.getComponent(Sprite);
 
         if (background) {
-            const targetFrame =
-                this.targetFrames[target];
+            const host = background.node;
+            const targetFrame = this.targetFrames[target];
+            host.active = true;
+            host.getComponent(UITransform)?.setContentSize(size, size);
 
-            background.node.active = true;
-            background.sizeMode =
-                Sprite.SizeMode.CUSTOM;
-
-            if (targetFrame) {
-                background.spriteFrame = targetFrame;
-                background.color = Color.WHITE;
+            if (targetFrame && usesIllustratedGem(target)) {
+                background.enabled = false;
+                const art = this.socketFill(host);
+                art.active = true;
+                const sprite = art.getComponent(Sprite);
+                if (sprite) {
+                    sprite.spriteFrame = targetFrame;
+                    sprite.color = Color.WHITE;
+                    placeSocketFill(sprite, size);
+                }
+                const drawn = host.getChildByName('SocketVisual');
+                if (drawn) drawn.active = false;
             } else {
+                const art = host.getChildByName('SocketFill');
+                if (art) art.active = false;
                 background.color = GEM_COLORS[target];
+                drawSocket(host, size, target);
             }
-
-            background
-                .getComponent(UITransform)
-                ?.setContentSize(size, size);
-            drawSocket(background.node, size, target);
         }
 
         // 2. 上层：当前可交换的立体方块
@@ -196,8 +245,8 @@ export class GemCell extends Component {
                 this.gemSprite.color = Color.WHITE;
 
                 const gemSize = usesIllustratedGem(current) && this.frames[current]
-                    ? size * 48 / 60
-                    : size * 0.72;
+                    ? size * ILLUSTRATED_GEM_RATIO
+                    : size * VECTOR_GEM_RATIO;
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);

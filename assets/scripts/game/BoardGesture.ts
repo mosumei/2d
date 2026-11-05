@@ -109,7 +109,6 @@ export class BoardGesture extends Component {
         this.lastPoint.set(point);
         if (Vec2.distance(point, this.origin) < this.tapSlop && !BoardGesture.swallowTap) return;
         BoardGesture.swallowTap = true;
-        if (this.node.scale.x <= this.minScale + 0.001) return;
         this.node.setPosition(this.node.position.x + current.x - previous.x,
             this.node.position.y + current.y - previous.y, this.node.position.z);
         this.clamp();
@@ -157,12 +156,6 @@ export class BoardGesture extends Component {
 
     private clamp(): void {
         const scale = this.node.scale.x;
-        if (scale <= this.minScale + 0.001) {
-            this.node.setScale(1, 1, 1);
-            this.node.setPosition(this.rest);
-            this.onViewChanged?.();
-            return;
-        }
         const board = this.node.getComponent(UITransform);
         const frame = this.viewport?.getComponent(UITransform);
         const scaledW = (board?.contentSize.width ?? 600) * scale;
@@ -173,9 +166,11 @@ export class BoardGesture extends Component {
         const frameBottom = -(frame?.anchorPoint.y ?? 0.5) * windowH;
         const anchorX = board?.anchorPoint.x ?? 0.5;
         const anchorY = board?.anchorPoint.y ?? 0.5;
-        // 四周留出半个窗口，放大后仍能把背景拖出来。
-        const x = this.limitAxis(
-            this.node.position.x, anchorX, scaledW, frameLeft, frameLeft + windowW, windowW * 0.5
+        // 左右可以滑到只剩最外一条边还在屏幕里。上下仍留半个窗口，用来露出背景。
+        const frameRight = frameLeft + windowW;
+        const x = Math.min(
+            frameRight + anchorX * scaledW,
+            Math.max(frameLeft - (1 - anchorX) * scaledW, this.node.position.x)
         );
         const y = this.limitAxis(
             this.node.position.y, anchorY, scaledH, frameBottom, frameBottom + windowH, windowH * 0.5

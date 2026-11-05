@@ -16,6 +16,8 @@ import {
     Layers
 } from 'cc';
 
+import { ILLUSTRATED_GEM_RATIO, placeSocketFill } from './GemVisuals';
+
 const { ccclass, property } = _decorator;
 
 /**
@@ -221,17 +223,18 @@ export class JewelEffects extends Component {
             const socketNode = new Node('Socket');
             socketNode.layer = Layers.Enum.UI_2D;
             socketNode.parent = tile;
-            socketNode.addComponent(UITransform).setContentSize(cell.size, cell.size);
+            socketNode.addComponent(UITransform);
             const socket = socketNode.addComponent(Sprite);
             socket.sizeMode = Sprite.SizeMode.CUSTOM;
             socket.spriteFrame = cell.socket;
             socket.color = Color.WHITE;
+            placeSocketFill(socket, cell.size);
 
             if (cell.gem) {
                 const gemNode = new Node('Gem');
                 gemNode.layer = Layers.Enum.UI_2D;
                 gemNode.parent = tile;
-                gemNode.addComponent(UITransform).setContentSize(cell.size * 48 / 60, cell.size * 48 / 60);
+                gemNode.addComponent(UITransform).setContentSize(cell.size * ILLUSTRATED_GEM_RATIO, cell.size * ILLUSTRATED_GEM_RATIO);
                 const gem = gemNode.addComponent(Sprite);
                 gem.sizeMode = Sprite.SizeMode.CUSTOM;
                 gem.spriteFrame = cell.gem;

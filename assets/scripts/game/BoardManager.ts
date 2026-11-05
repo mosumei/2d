@@ -5,6 +5,7 @@ import {
 
 import {
     GemCell,
+    GEM_COLOR_LETTERS,
     GemColor,
     GemFrames,
     TargetFrames
@@ -68,26 +69,20 @@ export class BoardManager extends Component {
     levelData: JsonAsset | null = null;
 
     private parseColor(char: string): GemColor {
-        if (char === 'Y') return 'yellow';
-        if (char === 'B') return 'blue';
-        if (char === 'R') return 'red';
-        if (char === 'K') return 'black';
-        if (char === 'W') return 'white';
-        if (char === 'P') return 'pink';
-        if (char === 'G') return 'green';
-        if (char === 'S') return 'gray';
-        throw new Error(`未知颜色 ${char}`);
+        const color = GEM_COLOR_LETTERS[char];
+        if (!color) throw new Error(`未知颜色 ${char}`);
+        return color;
     }
 
     private getGemFrames(): GemFrames {
         return {
+            ...this.tileFrames,
             yellow: this.tileFrames.yellow ?? this.yellowGem ?? undefined,
             blue: this.tileFrames.blue ?? this.blueGem ?? undefined,
             red: this.tileFrames.red ?? this.redGem ?? undefined,
             black: this.tileFrames.black ?? this.blackGem ?? undefined,
-            green: this.tileFrames.green,
             pink: this.tileFrames.pink ?? this.pinkGem ?? undefined,
-            white: this.whiteGem ?? undefined,
+            white: this.tileFrames.white ?? this.whiteGem ?? undefined,
             gray: undefined
         };
     }
@@ -136,12 +131,9 @@ export class BoardManager extends Component {
         this.node.getComponent(UITransform)?.setContentSize(cols * step - gap, rows * step - gap);
         const frames = this.getGemFrames();
         const targetFrames: TargetFrames = {
-            yellow: this.targetFrames.yellow,
+            ...this.targetFrames,
             blue: this.targetFrames.blue ?? this.blueTarget ?? undefined,
-            red: this.targetFrames.red,
-            black: this.targetFrames.black ?? this.blackTarget ?? undefined,
-            green: this.targetFrames.green,
-            pink: this.targetFrames.pink
+            black: this.targetFrames.black ?? this.blackTarget ?? undefined
         };
 
         for (let row = 0; row < rows; row++) {
@@ -272,7 +264,7 @@ export class BoardManager extends Component {
         graphics.lineWidth = width;
         graphics.lineJoin = Graphics.LineJoin.ROUND;
         graphics.lineCap = Graphics.LineCap.ROUND;
-        graphics.strokeColor = new Color(232, 112, 58, 255);
+        graphics.strokeColor = new Color(255, 255, 255, 255);
         for (const loop of loops) {
             const first = this.outlinePoint(loop[loop.length - 1], loop[0], out);
             graphics.moveTo(first.x, first.y);

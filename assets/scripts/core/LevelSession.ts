@@ -10,6 +10,9 @@ interface ProgressData {
     }>;
 }
 
+/** 正式版本目前做到第二关。 */
+export const MAX_LEVEL = 2;
+
 export class LevelSession {
 
     private static readonly SAVE_KEY =
@@ -44,14 +47,14 @@ export class LevelSession {
 
             const highestUnlockedLevel =
                 Number.isSafeInteger(highest) && highest >= 1
-                    ? highest
+                    ? Math.min(MAX_LEVEL, highest)
                     : 1;
 
             const lastPlayedLevel =
                 Number.isSafeInteger(last) &&
                 last >= 1 &&
                 last <= highestUnlockedLevel
-                    ? last
+                    ? Math.min(MAX_LEVEL, last)
                     : 1;
 
             return {
@@ -99,7 +102,7 @@ export class LevelSession {
             ? Math.max(progress.highestUnlockedLevel, level)
             : progress.highestUnlockedLevel;
 
-        return Math.max(1, Math.min(level, Math.min(7, cap)));
+        return Math.max(1, Math.min(level, Math.min(MAX_LEVEL, cap)));
     }
 
     public static continueGame() {
@@ -133,7 +136,7 @@ export class LevelSession {
         if (
             finished !== null &&
             progress.lastPlayedLevel <= finished &&
-            finished < 7
+            finished < MAX_LEVEL
         ) {
             return finished + 1;
         }
@@ -154,7 +157,7 @@ export class LevelSession {
      */
     public static getShowcaseLevel(): number | null {
         const level = Number(sys.localStorage.getItem(this.SHOWCASE_KEY));
-        return Number.isInteger(level) && level >= 1 ? level : null;
+        return Number.isInteger(level) && level >= 1 && level <= MAX_LEVEL ? level : null;
     }
 
     /**

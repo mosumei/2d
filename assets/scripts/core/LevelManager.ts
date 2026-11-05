@@ -8,6 +8,10 @@ import {
 } from 'cc';
 
 import type { GemPalette } from '../game/GemVisuals';
+import { GEM_COLOR_LETTERS } from '../game/GemCell';
+import { MAX_LEVEL } from './LevelSession';
+
+const LEVEL_COLOR_PATTERN = new RegExp(`^[${Object.keys(GEM_COLOR_LETTERS).join('')}.]+$`);
 
 const { ccclass } = _decorator;
 
@@ -160,14 +164,14 @@ export class LevelManager extends Component {
 
             this.highestUnlockedLevel =
                 Number.isSafeInteger(unlocked) && unlocked >= 1
-                    ? unlocked
+                    ? Math.min(MAX_LEVEL, unlocked)
                     : 1;
 
             this.lastPlayedLevel =
                 Number.isSafeInteger(last) &&
                     last >= 1 &&
                     last <= this.highestUnlockedLevel
-                    ? last
+                    ? Math.min(MAX_LEVEL, last)
                     : 1;
 
             if (
@@ -247,7 +251,7 @@ export class LevelManager extends Component {
      * @param level 要进入的关卡
      */
     public unlockThrough(level: number): void {
-        const target = Math.max(1, Math.min(7, Math.floor(level)));
+        const target = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level)));
         if (target <= this.highestUnlockedLevel) return;
         this.highestUnlockedLevel = target;
         this.saveProgress();
@@ -255,7 +259,7 @@ export class LevelManager extends Component {
 
     // 通关后解锁下一关
     public unlockNextLevel() {
-        const next = this.currentLevel + 1;
+        const next = Math.min(MAX_LEVEL, this.currentLevel + 1);
 
         if (next > this.highestUnlockedLevel) {
             this.highestUnlockedLevel = next;
@@ -372,7 +376,7 @@ export class LevelManager extends Component {
             data.target.some(
                 row => typeof row !== 'string' ||
                     row.length !== data.cols ||
-                    !/^[YBRWKPGS.]+$/.test(row)
+                    !LEVEL_COLOR_PATTERN.test(row)
             ) ||
             !Number.isInteger(data.trayCapacity) ||
             data.trayCapacity < 1 ||
@@ -386,7 +390,7 @@ export class LevelManager extends Component {
         }
 
         if (data.palette !== undefined) {
-            const names = ['yellow', 'blue', 'red', 'black', 'white', 'pink', 'green', 'gray'];
+            const names = Object.values(GEM_COLOR_LETTERS);
             if (!data.palette || typeof data.palette !== 'object' || Array.isArray(data.palette) ||
                 Object.keys(data.palette).some(name => names.indexOf(name) < 0 ||
                     !Array.isArray(data.palette[name]) || data.palette[name].length !== 3 ||
@@ -444,7 +448,7 @@ export class LevelManager extends Component {
                 data.initial.every(
                     (row, r) =>
                         row.length === data.cols &&
-                        /^[YBRWKPGS.]+$/.test(row) &&
+                        LEVEL_COLOR_PATTERN.test(row) &&
                         LevelManager.holesMatch(row, data.target[r])
                 );
 

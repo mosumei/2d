@@ -15,7 +15,7 @@ import { GemMoveAnimator, GemMove } from './GemMoveAnimator';
 import { CompletePanelUI } from '../ui/CompletePanelUI';
 import { LevelManager, LevelData } from '../core/LevelManager';
 import { AudioManager } from '../core/AudioManager'
-import { LevelSession } from '../core/LevelSession';
+import { LevelSession, MAX_LEVEL } from '../core/LevelSession';
 import { ArtifactCollectionManager, ARTIFACTS } from '../core/ArtifactCollectionManager';
 import { ArtifactCollectionUI } from '../ui/ArtifactCollectionUI';
 import { ToolsBarUI } from '../ui/ToolsBarUI';
@@ -31,7 +31,7 @@ import { MagnetManager } from './MagnetManager';
 import { TikTokAdsManager } from '../platform/TikTokAdsManager';
 import { JewelEffects } from './JewelEffects';
 import { GemCompletionShine } from './GemCompletionShine';
-import { configureGemPalette } from './GemVisuals';
+import { configureGemPalette, gemDrawSize } from './GemVisuals';
 import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
@@ -86,11 +86,8 @@ export class GameManager extends Component {
     private settingsPanel: SettingsPanel | null = null;
     private boardGesture: BoardGesture | null = null;
     private toolsNode: Node | null = null;
-    /** 道具行中心。按钮高 136，顶边是 toolsY + 68。 */
-    private readonly toolsY = -544;
-    private readonly toolButtonSize = 136;
-    /** 托盘底边和「查看广告」顶边之间的空隙。 */
-    private readonly trayToolGap = 36;
+    /** 托盘最底边（含绿色按钮）离屏幕底边留出的位置。 */
+    private readonly trayBottomY = -600;
     private hintEffect: HintEffect | null = null;
     private magnetManager: MagnetManager | null = null;
     private magnetRunning = false;
@@ -102,6 +99,7 @@ export class GameManager extends Component {
     private artifactToken = 0;
     private targetRegions: GemCell[][] = [];
     private flashedRegions = new Set<GemCell[]>();
+    private grantedColors = new Set<GemColor>();
     private regionShines: Promise<void>[] = [];
 
     public getMoveCount(): number {
@@ -157,6 +155,7 @@ audioManager: AudioManager | null = null;
 onLoad() {
     if (!LevelSession.takeGameEntry() && this.readPreviewLevel() === 0) {
         this.redirectedHome = true;
+        this.hideGameUntilHome();
         director.loadScene('MainMenu');
         return;
     }
@@ -270,6 +269,19 @@ onLoad() {
         }
     }
 
+    /** 刷新直接回首页时，先把游戏画面藏起来，避免弹窗闪一帧。 */
+    private hideGameUntilHome() {
+        const canvas = this.node.parent;
+        if (!canvas) return;
+        const opacity = canvas.getComponent(UIOpacity) ?? canvas.addComponent(UIOpacity);
+        opacity.opacity = 0;
+        for (const child of canvas.children) {
+            if (child.getComponent(SettingsPanel) || child.getComponent(CompletePanelUI)) {
+                child.active = false;
+            }
+        }
+    }
+
     /**
      * 绑定局内设置面板。齿轮按钮在底部道具栏里。
      */
@@ -303,6 +315,37 @@ onLoad() {
             };
         }
 
+    }
+
+    /**
+     * 左上角齿轮，打开设置。
+     */
+    private ensureSettingsButton() {
+        const canvas = this.node.parent;
+        if (!canvas || canvas.getChildByName('GearButton')) return;
+        const node = new Node('GearButton');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = canvas;
+        node.setPosition(-278, 559, 0);
+        node.addComponent(UITransform).setContentSize(77, 77);
+        const sprite = node.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        resources.load('ui/game/btn_gea/spriteFrame', SpriteFrame, (error, frame) => {
+            if (error || !frame || !isValid(node)) {
+                if (error) console.error('[Game] 加载 ui/game/btn_gea/spriteFrame 失败', error);
+                return;
+            }
+            sprite.spriteFrame = frame;
+        });
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, () => {
+            const settings = this.settingsPanel;
+            if (!settings) return;
+            settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
+            settings.openPanel();
+        }, this);
     }
 
     /**
@@ -362,7 +405,7 @@ onLoad() {
         button.zoomScale = 1.06;
         node.on(Button.EventType.CLICK, () => {
             const current = this.levelManager?.getCurrentLevel() ?? 1;
-            const next = current >= 7 ? 1 : current + 1;
+            const next = current >= MAX_LEVEL ? 1 : current + 1;
             this.openLevel(next, true);
         }, this);
     }
@@ -389,15 +432,14 @@ onLoad() {
     }
 
     /**
-     * 托盘底边停在「查看广告」上方。行数变了也只往上长。
+     * 托盘底边靠近屏幕底部，留出一条缝。行数变了也只往上长。
      */
     private placeTrayAboveTools() {
         const tray = this.trayManager;
         if (!tray?.isValid) return;
         const shelfBottom = tray.getShelfBottom();
         if (shelfBottom === null) return;
-        const badgeTop = this.toolsY + this.toolButtonSize / 2 + 30;
-        tray.node.setPosition(0, badgeTop + this.trayToolGap - shelfBottom, 0);
+        tray.node.setPosition(0, this.trayBottomY - shelfBottom, 0);
         const canvas = this.node.parent;
         const viewport = canvas?.getChildByName('BoardViewport');
         if (canvas && viewport) this.raiseChromeAboveBoard(canvas, viewport);
@@ -420,8 +462,8 @@ onLoad() {
     private raiseChromeAboveBoard(canvas: Node, viewport: Node) {
         const chrome = [
             this.levelLabel?.node,
-            canvas.getChildByName('TrayContainer'),
-            canvas.getChildByName('ToolsContainer')
+            canvas.getChildByName('GearButton'),
+            canvas.getChildByName('TrayContainer')
         ];
         let anchor = viewport;
         for (const node of chrome) {
@@ -438,7 +480,7 @@ onLoad() {
      */
     private installViewportHitTest(area: UITransform) {
         const original = area.hitTest.bind(area);
-        const chrome = ['LevelLabel', 'TrayContainer', 'ToolsContainer'];
+        const chrome = ['LevelLabel', 'GearButton', 'TrayContainer'];
         area.hitTest = (screenPoint: Vec2, windowId = 0) => {
             if (!original(screenPoint, windowId)) return false;
             const canvas = area.node.parent;
@@ -458,7 +500,7 @@ onLoad() {
     private readPreviewLevel(): number {
         if (!PREVIEW || typeof location === 'undefined') return 0;
         const requested = Number(new URLSearchParams(location.search).get('preview-level'));
-        if (Number.isInteger(requested) && requested >= 1 && requested <= 7) return requested;
+        if (Number.isInteger(requested) && requested >= 1 && requested <= MAX_LEVEL) return requested;
         return 0;
     }
 
@@ -482,6 +524,7 @@ onLoad() {
         }
 
         this.ensureGameBackground();
+        this.ensureSettingsButton();
 
         // Leave a clear gap above the multi-row shelf, even for tall pixel art.
         this.boardManager?.node.setPosition(0, 100, 0);
@@ -510,24 +553,12 @@ onLoad() {
         }
         if (this.trayManager) {
             this.trayManager.onShelfResized = () => this.placeTrayAboveTools();
+            this.trayManager.canWatchAd = () => !this.isAnimating && !this.finished && !this.isSettingsOpen() && !this.magnetRunning;
         }
         const tools = this.node.parent?.getChildByName('ToolsContainer');
         if (tools) {
             this.toolsNode = tools;
-            tools.active = true;
-            tools.setPosition(0, this.toolsY, 0);
-            const bar = tools.getComponent(ToolsBarUI) ?? tools.addComponent(ToolsBarUI);
-            bar.build();
-            this.toolsBar = bar;
-            bar.onWandClick = () => this.toggleWand();
-            bar.onMagnetClick = () => this.useMagnet();
-            bar.onSettingsClick = () => {
-                const settings = this.settingsPanel;
-                if (!settings) return;
-                settings.node.setSiblingIndex((settings.node.parent?.children.length ?? 1) - 1);
-                settings.openPanel();
-            };
-            this.refreshRankLabel();
+            tools.active = false;
         }
         this.ensureHintEffect();
         this.ensureMagnetManager();
@@ -886,7 +917,7 @@ onLoad() {
             frame,
             from: source.gemSprite?.node ?? source.node,
             to: dest.node,
-            endSize: dest.getDisplaySize() * 0.72,
+            endSize: gemDrawSize(color, dest.getDisplaySize()),
             onArrive: () => {
                 source.setCurrentColor(null);
                 dest.setCurrentColor(color);
@@ -909,7 +940,7 @@ onLoad() {
                 frame: frameA,
                 from: source.gemSprite?.node ?? source.node,
                 to: dest.node,
-                endSize: dest.getDisplaySize() * 0.72,
+                endSize: gemDrawSize(colorA, dest.getDisplaySize()),
                 onArrive: () => {
                     dest.setCurrentColor(colorA);
                     this.settleLandedGem(dest);
@@ -919,7 +950,7 @@ onLoad() {
                 frame: frameB,
                 from: dest.gemSprite?.node ?? dest.node,
                 to: source.node,
-                endSize: source.getDisplaySize() * 0.72,
+                endSize: gemDrawSize(colorB, source.getDisplaySize()),
                 onArrive: () => {
                     source.setCurrentColor(colorB);
                     this.settleLandedGem(source);
@@ -942,7 +973,7 @@ onLoad() {
             frame,
             from: sourceGem,
             to: dest.node,
-            endSize: dest.getDisplaySize() * 0.72,
+            endSize: gemDrawSize(color, dest.getDisplaySize()),
             onArrive: () => {
                 tray.setGemAt(slot, null);
                 dest.setCurrentColor(color);
@@ -1237,8 +1268,8 @@ onLoad() {
                 frame,
                 from: fromNode,
                 to: toNode,
-                startSize: this.wandGemSize(from),
-                endSize: this.wandGemSize(to)
+                startSize: this.wandGemSize(from, color),
+                endSize: this.wandGemSize(to, color)
             });
         };
 
@@ -1411,9 +1442,9 @@ onLoad() {
         }
     }
 
-    private wandGemSize(source: WandSource): number {
+    private wandGemSize(source: WandSource, color: GemColor): number {
         switch (source.kind) {
-            case 'cell': return Math.round(source.cell.getDisplaySize() * 0.72);
+            case 'cell': return gemDrawSize(color, source.cell.getDisplaySize());
             case 'tray': return this.trayManager?.getGemSize() ?? 44;
             default: {
                 const unknown: never = source;
@@ -1560,7 +1591,7 @@ onLoad() {
                 frame: item.cell.gemSprite?.spriteFrame ?? null,
                 from: gemNode,
                 to: slotNode,
-                startSize: Math.round(item.cell.getDisplaySize() * 0.72),
+                startSize: Math.round(gemDrawSize(item.color, item.cell.getDisplaySize())),
                 endSize: tray.getGemSize(),
                 delay: moves.length * 0.08,
                 sequential: true,
@@ -1719,7 +1750,7 @@ onLoad() {
                 frame: frameA,
                 from: pair.source.gemSprite?.node ?? pair.source.node,
                 to: pair.dest.node,
-                endSize: pair.dest.getDisplaySize() * 0.72,
+                endSize: gemDrawSize(sourceColor, pair.dest.getDisplaySize()),
                 delay: index * 0.05,
                 onDepart: () => pair.source.setCurrentColor(null),
                 onArrive: () => {
@@ -1773,7 +1804,7 @@ onLoad() {
                 frame: sourceFrame,
                 from: sourceGem,
                 to: pair.dest.node,
-                endSize: pair.dest.getDisplaySize() * 0.72,
+                endSize: gemDrawSize(color, pair.dest.getDisplaySize()),
                 delay: index * 0.05,
                 onDepart: () => tray.setGemAt(pair.slot, null),
                 onArrive: () => {
@@ -1813,16 +1844,40 @@ onLoad() {
 
     private flashCompletedRegions(): void {
         const token = this.finishToken;
-        let granted = 0;
         for (const region of this.targetRegions) {
             if (this.flashedRegions.has(region) || !region.every(cell => cell.isValid && cell.isCorrect())) continue;
             this.flashedRegions.add(region);
             const task = new GemCompletionShine().playRegion(region,
                 () => !this.isValid || token !== this.finishToken);
             this.regionShines.push(task);
+        }
+        const finished = this.colorsFullyPlaced();
+        let granted = 0;
+        for (const color of finished) {
+            if (this.grantedColors.has(color)) continue;
+            this.grantedColors.add(color);
             granted += 1;
         }
         if (granted > 0) this.trayManager?.grantRows(granted);
+    }
+
+    /** 整张图里已经全部归位的目标颜色。 */
+    private colorsFullyPlaced(): GemColor[] {
+        const board = this.boardManager;
+        if (!board) return [];
+        const pending = new Set<GemColor>();
+        const seen = new Set<GemColor>();
+        for (const cell of board.getCells()) {
+            const color = cell.targetColor;
+            if (!color) continue;
+            seen.add(color);
+            if (!cell.isValid || !cell.isCorrect()) pending.add(color);
+        }
+        const finished: GemColor[] = [];
+        for (const color of seen) {
+            if (!pending.has(color)) finished.push(color);
+        }
+        return finished;
     }
 
     private runMoves(
@@ -1957,7 +2012,6 @@ onLoad() {
             this.boardGesture?.resetView();
             const trayReady = this.trayManager!.resetTray(12);
             const steps = readTutorialSteps(data.tutorialSteps);
-            if (this.toolsNode) this.toolsNode.active = true;
             this.tutorial?.stop();
             this.tutorial = null;
             this.tutorialRunning = false;
@@ -1969,6 +2023,7 @@ onLoad() {
                     if (!this.isValid) return;
                     this.targetRegions = this.boardManager!.getTargetRegions();
                     this.flashedRegions = new Set(this.targetRegions.filter(region => region.every(cell => cell.isCorrect())));
+                    this.grantedColors = new Set(this.colorsFullyPlaced());
                     this.regionShines = [];
                     void trayReady.then(() => { if (this.isValid) this.finished = false; });
                     if (steps.length === 0) return;
@@ -2012,7 +2067,6 @@ onLoad() {
         this.tutorialRunning = false;
         this.tutorial?.stop();
         this.tutorial = null;
-        if (this.toolsNode) this.toolsNode.active = true;
     }
 
     /**
@@ -2047,7 +2101,7 @@ onLoad() {
         if (!this.finished || !this.levelManager) return;
 
         const next = this.levelManager.getCurrentLevel() + 1;
-        if (next > 7) return;
+        if (next > MAX_LEVEL) return;
         this.openLevel(next);
     }
 
@@ -2096,7 +2150,7 @@ onLoad() {
                 stars
             );
             this.levelManager.unlockNextLevel();
-            if (level < 7) {
+            if (level < MAX_LEVEL) {
                 this.levelManager.setLastPlayedLevel(level + 1);
             }
         }

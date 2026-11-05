@@ -12,6 +12,37 @@ export type TileSet = {
 let cached: TileSet | null = null;
 let loading: Promise<TileSet> | null = null;
 
+const ILLUSTRATED_COLORS: GemColor[] = [
+    'yellow', 'blue', 'red', 'black', 'white', 'pink', 'green',
+    'darkRed', 'orange', 'brown', 'olive', 'teal', 'navy', 'purple'
+];
+
+function assetName(color: GemColor): string {
+    switch (color) {
+        case 'darkRed': return 'dark_red';
+        case 'yellow':
+        case 'blue':
+        case 'red':
+        case 'black':
+        case 'white':
+        case 'pink':
+        case 'green':
+        case 'orange':
+        case 'brown':
+        case 'olive':
+        case 'teal':
+        case 'navy':
+        case 'purple':
+            return color;
+        case 'gray':
+            return '';
+        default: {
+            const unknown: never = color;
+            return unknown;
+        }
+    }
+}
+
 function loadFrame(path: string): Promise<SpriteFrame | null> {
     return new Promise((resolve) => {
         resources.load(path, SpriteFrame, (error, frame) => {
@@ -31,41 +62,21 @@ export function loadTileSet(): Promise<TileSet> {
     }
 
     if (!loading) {
-        loading = Promise.all([
-            loadFrame('gems/gem_blue/spriteFrame'),
-            loadFrame('gems/gem_black/spriteFrame'),
-            loadFrame('gems/gem_yellow/spriteFrame'),
-            loadFrame('gems/gem_green/spriteFrame'),
-            loadFrame('gems/gem_red/spriteFrame'),
-            loadFrame('gems/gem_pink/spriteFrame'),
-            loadFrame('gems/socket_blue/spriteFrame'),
-            loadFrame('gems/socket_black/spriteFrame'),
-            loadFrame('gems/socket_yellow/spriteFrame'),
-            loadFrame('gems/socket_green/spriteFrame'),
-            loadFrame('gems/socket_red/spriteFrame'),
-            loadFrame('gems/socket_pink/spriteFrame')
-        ]).then(([
-            blue, black, yellow, green, red, pink,
-            blueTarget, blackTarget, yellowTarget, greenTarget, redTarget, pinkTarget
-        ]) => {
-            cached = {
-                tiles: {
-                    blue: blue ?? undefined,
-                    black: black ?? undefined,
-                    yellow: yellow ?? undefined,
-                    green: green ?? undefined,
-                    red: red ?? undefined,
-                    pink: pink ?? undefined
-                },
-                targets: {
-                    blue: blueTarget ?? undefined,
-                    black: blackTarget ?? undefined,
-                    yellow: yellowTarget ?? undefined,
-                    green: greenTarget ?? undefined,
-                    red: redTarget ?? undefined,
-                    pink: pinkTarget ?? undefined
-                }
-            };
+        const jobs = ILLUSTRATED_COLORS.map((color) => {
+            const name = assetName(color);
+            return Promise.all([
+                loadFrame(`gems/gem_${name}/spriteFrame`),
+                loadFrame(`gems/socket_${name}/spriteFrame`)
+            ]).then(([gem, socket]) => ({ color, gem, socket }));
+        });
+        loading = Promise.all(jobs).then((loaded) => {
+            const tiles: TileFrames = {};
+            const targets: TileFrames = {};
+            for (const item of loaded) {
+                if (item.gem) tiles[item.color] = item.gem;
+                if (item.socket) targets[item.color] = item.socket;
+            }
+            cached = { tiles, targets };
             return cached;
         });
     }

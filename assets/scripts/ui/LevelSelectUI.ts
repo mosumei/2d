@@ -11,7 +11,7 @@ import {
     director
 } from 'cc';
 
-import { LevelSession } from '../core/LevelSession';
+import { LevelSession, MAX_LEVEL } from '../core/LevelSession';
 
 const { ccclass, property } = _decorator;
 
@@ -29,7 +29,7 @@ export class LevelSelectUI extends Component {
 
     // 当前实际制作的关卡数量
     @property
-    totalLevels = 7;
+    totalLevels = MAX_LEVEL;
 
     // 每行多少个按钮
     @property
@@ -40,7 +40,7 @@ export class LevelSelectUI extends Component {
     private readonly stepY = 155;
 
     onLoad() {
-        this.totalLevels = 7;
+        this.totalLevels = MAX_LEVEL;
         this.backButton?.node.on(
             Button.EventType.CLICK,
             this.goBack,

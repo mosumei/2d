@@ -1,13 +1,13 @@
 
 import {
-    _decorator, Component, EventTouch, Node, UITransform,
+    _decorator, Button, Component, EventTouch, Node, UITransform,
     Graphics, Sprite, SpriteFrame, Color, Layers,
-    Tween, tween, Vec3, Label, resources, UIOpacity
+    Tween, tween, Vec2, Vec3, Label, resources, UIOpacity
 } from 'cc';
 
 import type { GemColor } from './GemCell';
 import { loadTileSet, TileFrames } from './TileSprites';
-import { drawBead } from './GemVisuals';
+import { drawBead, ILLUSTRATED_GEM_RATIO } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -52,6 +52,10 @@ public getFirstEmptySlot(): number {
 
     /** 底板尺寸变化后通知外面重新留出和道具行的空隙。 */
     public onShelfResized: (() => void) | null = null;
+    /** 返回 false 时，绿色按钮不开始假广告。 */
+    public canWatchAd: (() => boolean) | null = null;
+
+    private watchingAd = false;
 
     private slots: Node[] = [];
     private gems: (GemColor | null)[] = [];
@@ -71,6 +75,8 @@ public getFirstEmptySlot(): number {
     private readonly barPadY = 14;
     /** 底边青绿按钮的高度。一半压在托盘上，一半探出去。 */
     private readonly addPillHeight = 46;
+    /** 一行 12 个孔，托盘最多四行。 */
+    private readonly maxSlots = 48;
 
 public resetTray(capacity: number): Promise<void> {
     this.capacity = capacity;
@@ -101,7 +107,9 @@ public resetTray(capacity: number): Promise<void> {
      * @returns 新开行的高度。没有新开行时是 0，调用方不必上移托盘。
      */
     public addSlots(count: number): number {
-        if (!this.isValid || this.slots.length === 0 || count <= 0) return 0;
+        const room = this.maxSlots - this.slots.length;
+        const adding = Math.min(count, room);
+        if (!this.isValid || this.slots.length === 0 || adding <= 0) return 0;
 
         const columns = 12;
         const step = this.slotSize;
@@ -111,7 +119,7 @@ public resetTray(capacity: number): Promise<void> {
         }
 
         let opened = 0;
-        for (let n = 0; n < count; n++) {
+        for (let n = 0; n < adding; n++) {
             const index = this.capacity;
             const column = index % columns;
             let y = bottom;
@@ -137,33 +145,41 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     /**
-     * 完成一块同色区域时加一行空槽。新孔逐个弹出，托盘底板闪一下。
-     * @param rows 要加的行数
+     * 完成一种颜色时加三个空槽。新孔逐个弹出，托盘底板闪一下。
+     * @param colors 这次归位的颜色数
      */
-    public grantRows(rows: number) {
-        if (!this.isValid || rows <= 0 || this.slots.length === 0) return;
+    public grantRows(colors: number) {
+        this.grantSlots(colors * 3);
+    }
+
+    /**
+     * 在已有槽位后面追加空孔，并逐个弹出。
+     * @param count 要加的空孔数
+     */
+    public grantSlots(count: number) {
+        if (!this.isValid || count <= 0 || this.slots.length === 0) return;
         const start = this.slots.length;
-        this.addSlots(rows * 12);
+        this.addSlots(count);
         const fresh = this.slots.slice(start);
         fresh.forEach((slot, index) => {
             if (!slot?.isValid) return;
             slot.setScale(0.2, 0.2, 1);
             const opacity = slot.getComponent(UIOpacity) ?? slot.addComponent(UIOpacity);
             opacity.opacity = 0;
-            const delay = index * 0.028;
+            const delay = index * 0.06;
             tween(slot)
                 .delay(delay)
-                .to(0.24, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+                .to(0.5, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
                 .start();
             tween(opacity)
                 .delay(delay)
-                .to(0.16, { opacity: 255 })
+                .to(0.34, { opacity: 255 })
                 .start();
         });
         this.flashShelf();
     }
 
-    /** 托盘底板快速闪白，表示刚加了一排孔。 */
+    /** 托盘底板闪白，表示刚加了一排孔。 */
     private flashShelf() {
         const shelf = this.node.getChildByName('Shelf');
         const shelfUi = shelf?.getComponent(UITransform);
@@ -188,8 +204,8 @@ public resetTray(capacity: number): Promise<void> {
         const transform = flash.getComponent(UITransform);
         if (transform) transform.hitTest = () => false;
         tween(opacity)
-            .to(0.08, { opacity: 170 })
-            .to(0.28, { opacity: 0 })
+            .to(0.16, { opacity: 170 })
+            .to(0.56, { opacity: 0 })
             .call(() => {
                 if (flash.isValid) flash.destroy();
             })
@@ -209,6 +225,7 @@ public resetTray(capacity: number): Promise<void> {
             minY = Math.min(minY, slot.position.y);
             maxY = Math.max(maxY, slot.position.y);
         }
+        if (this.slots.length % 12 === 0 && this.slots.length < this.maxSlots) minY -= this.slotSize;
 
         const height = maxY - minY + this.slotSize + this.barPadY * 2;
         let backing = this.node.getChildByName('Shelf');
@@ -242,6 +259,7 @@ public resetTray(capacity: number): Promise<void> {
             graphics.stroke();
         }
         this.ensureAddPill(backing, height);
+        this.ensureSlotDash();
         this.node.getComponent(UITransform)?.setContentSize(this.barWidth, height + this.addPillHeight);
         this.bindTrayTouch();
         this.onShelfResized?.();
@@ -251,8 +269,19 @@ public resetTray(capacity: number): Promise<void> {
      * 整条托盘都能点。点在金边或孔之间时，选中最近的那一颗。
      */
     private bindTrayTouch() {
+        const ui = this.node.getComponent(UITransform);
+        if (ui) ui.hitTest = (screenPoint: Vec2, windowId = 0) => this.hitsTray(screenPoint, windowId);
         this.node.off(Node.EventType.TOUCH_END, this.onTrayTouch, this);
         this.node.on(Node.EventType.TOUCH_END, this.onTrayTouch, this);
+    }
+
+    /** 只有看得见的托盘和绿色按钮接收点击，避免挡住上面的拼图。 */
+    private hitsTray(screenPoint: Vec2, windowId = 0): boolean {
+        const shelf = this.node.getChildByName('Shelf');
+        const shelfUi = shelf?.getComponent(UITransform);
+        if (shelfUi?.hitTest(screenPoint, windowId)) return true;
+        const pill = shelf?.getChildByName('AddPill')?.getComponent(UITransform);
+        return pill?.hitTest(screenPoint, windowId) ?? false;
     }
 
     private onTrayTouch(event: EventTouch) {
@@ -265,6 +294,11 @@ public resetTray(capacity: number): Promise<void> {
         const local = trayUi.convertToNodeSpaceAR(new Vec3(point.x, point.y, 0));
         const barWidth = shelfUi.contentSize.width;
         const barHeight = shelfUi.contentSize.height;
+        const onSlot = this.slotAt(local.x, local.y);
+        if (onSlot >= 0) {
+            this.onSlotClicked?.(onSlot);
+            return;
+        }
         const insideShelf = local.x >= shelf.position.x - barWidth / 2
             && local.x <= shelf.position.x + barWidth / 2
             && local.y >= shelf.position.y - barHeight / 2
@@ -273,6 +307,26 @@ public resetTray(capacity: number): Promise<void> {
 
         const index = this.nearestSlot(local.x, local.y);
         if (index >= 0) this.onSlotClicked?.(index);
+    }
+
+    /** 点落在某个圆孔方框里时，返回那个槽。圆孔优先于绿色按钮。 */
+    private slotAt(x: number, y: number): number {
+        const half = this.slotSize / 2;
+        let nearest = -1;
+        let nearestDistance = Infinity;
+        for (let index = 0; index < this.slots.length; index++) {
+            const slot = this.slots[index];
+            if (!slot?.isValid) continue;
+            const dx = slot.position.x - x;
+            const dy = slot.position.y - y;
+            if (Math.abs(dx) > half || Math.abs(dy) > half) continue;
+            const distance = dx * dx + dy * dy;
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = index;
+            }
+        }
+        return nearest;
     }
 
     private hitsAddPill(shelf: Node, x: number, y: number): boolean {
@@ -304,7 +358,7 @@ public resetTray(capacity: number): Promise<void> {
         return nearest;
     }
 
-    /** 底边中间的青绿按钮，只展示，不增加槽位。 */
+    /** 底边中间的青绿按钮。点下去先假看一段广告，再加三个空孔。 */
     private ensureAddPill(shelf: Node, barHeight: number) {
         let pill = shelf.getChildByName('AddPill');
         if (!pill?.isValid) {
@@ -313,11 +367,162 @@ public resetTray(capacity: number): Promise<void> {
             pill.parent = shelf;
             const transform = pill.addComponent(UITransform);
             transform.setContentSize(180, this.addPillHeight);
-            transform.hitTest = () => false;
             pill.addComponent(Graphics);
             this.paintAddPill(pill);
+            const button = pill.addComponent(Button);
+            button.transition = Button.Transition.SCALE;
+            button.zoomScale = 1.05;
+            pill.on(Button.EventType.CLICK, this.onAddPillClick, this);
         }
         pill.setPosition(0, -barHeight / 2 - this.addPillHeight / 2 + 12, 0);
+    }
+
+    private onAddPillClick() {
+        if (this.slots.length >= this.maxSlots) return;
+        if (this.watchingAd || (this.canWatchAd && !this.canWatchAd())) return;
+        this.watchingAd = true;
+        this.showWatchedTip();
+        this.grantSlots(3);
+        this.scheduleOnce(() => {
+            this.watchingAd = false;
+        }, 1.2);
+    }
+
+    /** 假广告结束后的短提示。 */
+    private showWatchedTip() {
+        const canvas = this.node.parent?.parent;
+        if (!canvas?.isValid) return;
+        const previous = canvas.getChildByName('WatchedAdTip');
+        if (previous?.isValid) previous.destroy();
+        const tip = new Node('WatchedAdTip');
+        tip.layer = Layers.Enum.UI_2D;
+        tip.parent = canvas;
+        tip.setPosition(0, 280, 0);
+        tip.setSiblingIndex(canvas.children.length - 1);
+        const transform = tip.addComponent(UITransform);
+        transform.setContentSize(280, 72);
+        transform.hitTest = () => false;
+        const graphics = tip.addComponent(Graphics);
+        graphics.fillColor = new Color(255, 248, 236, 245);
+        graphics.roundRect(-140, -36, 280, 72, 18);
+        graphics.fill();
+        const labelNode = new Node('Label');
+        labelNode.layer = Layers.Enum.UI_2D;
+        labelNode.parent = tip;
+        labelNode.addComponent(UITransform).setContentSize(240, 40);
+        const label = labelNode.addComponent(Label);
+        label.useSystemFont = true;
+        label.fontFamily = 'PingFang SC';
+        label.string = '已查看广告';
+        label.fontSize = 26;
+        label.lineHeight = 32;
+        label.isBold = true;
+        label.color = new Color(120, 78, 36, 255);
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
+        label.verticalAlign = Label.VerticalAlign.CENTER;
+        this.scheduleOnce(() => {
+            if (tip.isValid) tip.destroy();
+        }, 1.2);
+    }
+
+    /** 虚线框紧跟在最后一个插槽后面，排满就换到下一行最左边。 */
+    private ensureSlotDash() {
+        let dash = this.node.getChildByName('SlotDash');
+        if (!dash?.isValid) {
+            dash = new Node('SlotDash');
+            dash.layer = Layers.Enum.UI_2D;
+            dash.parent = this.node;
+            dash.addComponent(UITransform);
+            dash.addComponent(Graphics);
+        }
+        const columns = 12;
+        const step = this.slotSize;
+        const count = this.slots.length;
+        if (count === 0 || step <= 0 || count >= this.maxSlots) {
+            dash.active = false;
+            return;
+        }
+        dash.active = true;
+        let lowest = this.slots[0].position.y;
+        for (const slot of this.slots) {
+            if (slot.isValid && slot.position.y < lowest) lowest = slot.position.y;
+        }
+        const column = count % columns;
+        const span = Math.min(3, columns - column);
+        const y = column === 0 ? lowest - step : lowest;
+        const columnX = (col: number) => (col - (columns - 1) / 2) * step;
+        const centerX = (columnX(column) + columnX(column + span - 1)) / 2;
+        const width = (span - 1) * step + step * 0.92;
+        const height = step * 0.92;
+        const transform = dash.getComponent(UITransform);
+        if (transform) {
+            transform.setContentSize(width, height);
+            transform.hitTest = () => false;
+        }
+        dash.setPosition(centerX, y, 0);
+        dash.setSiblingIndex(this.node.children.length - 1);
+        const graphics = dash.getComponent(Graphics);
+        if (graphics) this.paintDashedRoundRect(graphics, width, height, Math.min(14, height / 2));
+    }
+
+    private paintDashedRoundRect(graphics: Graphics, width: number, height: number, radius: number) {
+        graphics.clear();
+        graphics.lineWidth = 2.5;
+        graphics.strokeColor = new Color(196, 132, 78, 230);
+        const points = this.roundedRectLoop(width, height, radius);
+        const dash = 7;
+        const gap = 5;
+        let drawing = true;
+        let remain = dash;
+        for (let index = 0; index < points.length; index++) {
+            const from = points[index];
+            const to = points[(index + 1) % points.length];
+            const length = Math.hypot(to.x - from.x, to.y - from.y);
+            if (length < 0.01) continue;
+            let traveled = 0;
+            let x = from.x;
+            let y = from.y;
+            while (traveled < length - 0.01) {
+                const step = Math.min(remain, length - traveled);
+                const nextX = x + ((to.x - from.x) / length) * step;
+                const nextY = y + ((to.y - from.y) / length) * step;
+                if (drawing) {
+                    graphics.moveTo(x, y);
+                    graphics.lineTo(nextX, nextY);
+                    graphics.stroke();
+                }
+                x = nextX;
+                y = nextY;
+                traveled += step;
+                remain -= step;
+                if (remain <= 0.01) {
+                    drawing = !drawing;
+                    remain = drawing ? dash : gap;
+                }
+            }
+        }
+    }
+
+    private roundedRectLoop(width: number, height: number, radius: number): { x: number; y: number }[] {
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        const curve = Math.min(radius, halfWidth, halfHeight);
+        const points: { x: number; y: number }[] = [];
+        const arc = (centerX: number, centerY: number, start: number, end: number) => {
+            const steps = 4;
+            for (let step = 0; step <= steps; step++) {
+                const angle = start + (end - start) * (step / steps);
+                points.push({
+                    x: centerX + Math.cos(angle) * curve,
+                    y: centerY + Math.sin(angle) * curve
+                });
+            }
+        };
+        arc(halfWidth - curve, halfHeight - curve, Math.PI / 2, 0);
+        arc(halfWidth - curve, -halfHeight + curve, 0, -Math.PI / 2);
+        arc(-halfWidth + curve, -halfHeight + curve, -Math.PI / 2, -Math.PI);
+        arc(-halfWidth + curve, halfHeight - curve, Math.PI, Math.PI / 2);
+        return points;
     }
 
     private paintAddPill(pill: Node) {
@@ -423,7 +628,7 @@ public resetTray(capacity: number): Promise<void> {
 
     private createSlots() {
         for (const child of [...this.node.children]) {
-            if (child.name === 'Shelf') continue;
+            if (child.name === 'Shelf' || child.name === 'SlotDash') continue;
             child.destroy();
         }
 
@@ -437,7 +642,7 @@ public resetTray(capacity: number): Promise<void> {
         const rows = Math.ceil(count / columns);
         this.slotSize = Math.min(46, Math.floor((this.barWidth - 40) / columns));
         this.wellSize = Math.round(this.slotSize * 0.9);
-        this.gemSize = Math.round(this.wellSize * 48 / 60);
+        this.gemSize = Math.round(this.wellSize * ILLUSTRATED_GEM_RATIO);
         const step = this.slotSize;
 
         for (let i = 0; i < this.capacity; i++) {
@@ -612,15 +817,25 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     private getFrame(color: GemColor): SpriteFrame | null {
+        const loaded = this.tileFrames[color];
+        if (loaded) return loaded;
         switch (color) {
-            case 'yellow': return this.tileFrames.yellow ?? this.yellowGem;
-            case 'blue': return this.tileFrames.blue ?? this.blueGem;
-            case 'red': return this.tileFrames.red ?? this.redGem ?? null;
-            case 'black': return this.tileFrames.black ?? this.blackGem;
-            case 'white': return this.whiteGem ?? this.tileFrames.black ?? null;
-            case 'pink': return this.tileFrames.pink ?? this.pinkGem ?? null;
-            case 'gray': return this.tileFrames.black ?? this.blackGem ?? null;
-            case 'green': return this.tileFrames.green ?? null;
+            case 'yellow': return this.yellowGem;
+            case 'blue': return this.blueGem;
+            case 'red': return this.redGem ?? null;
+            case 'black': return this.blackGem;
+            case 'white': return this.whiteGem;
+            case 'pink': return this.pinkGem ?? null;
+            case 'green':
+            case 'darkRed':
+            case 'orange':
+            case 'brown':
+            case 'olive':
+            case 'teal':
+            case 'navy':
+            case 'purple':
+            case 'gray':
+                return null;
             default: {
                 const unknown: never = color;
                 return unknown;
