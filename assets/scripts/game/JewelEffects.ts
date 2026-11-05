@@ -13,8 +13,12 @@ import {
     UIOpacity,
     UITransform,
     Graphics,
-    Layers
+    Layers,
+    resources,
+    Texture2D,
+    Rect
 } from 'cc';
+import { PREVIEW } from 'cc/env';
 
 import { ILLUSTRATED_GEM_RATIO, placeSocketFill } from './GemVisuals';
 
@@ -38,23 +42,111 @@ export class JewelEffects extends Component {
 
     private wandRegion: Node | null = null;
 
-    /**
-     * 宝石刚正确归位时的弹跳、闪光和星点。
-     */
+    private readonly placementSheens = new Map<Node, { sprite: Sprite; elapsed: number }>();
+    private placementFrames: SpriteFrame[] = [];
+    private placementFramesLoading: Promise<void> | null = null;
+
+    onLoad(): void {
+        void this.loadPlacementFrames();
+    }
+
+    private loadPlacementFrames(): Promise<void> {
+        if (this.placementFramesLoading) return this.placementFramesLoading;
+        this.placementFramesLoading = new Promise(resolve => {
+            resources.load('effects/placement-reflection/texture', Texture2D, (error, texture) => {
+                if (error || !this.isValid) {
+                    if (error) console.warn('[JewelEffects] 归位反光素材加载失败', error);
+                    resolve();
+                    return;
+                }
+                // 透明帧来自目标录屏的白色反光差分，不包含原棋子的颜色。
+                for (let index = 0; index < 28; index++) {
+                    const frame = new SpriteFrame();
+                    frame.texture = texture;
+                    frame.rect = new Rect((index % 8) * 32, Math.floor(index / 8) * 32, 32, 32);
+                    this.placementFrames.push(frame);
+                }
+                resolve();
+            });
+        });
+        return this.placementFramesLoading;
+    }
+
+    /** 随落定逐颗触发；前一颗收成闪点时，下一颗可以接着亮起。 */
     public playGemPlaced(gem: Node): void {
-        if (!gem?.isValid) return;
+        if (!gem?.isValid || !this.enabledInHierarchy) return;
+        if (this.placementFrames.length === 0) {
+            const version = this.placementVersion;
+            void this.loadPlacementFrames().then(() => {
+                if (version === this.placementVersion && this.placementFrames.length > 0) this.playGemPlaced(gem);
+            });
+            return;
+        }
+        if (!gem.activeInHierarchy) return;
+        const surface = gem.getChildByName('GemSprite') ?? gem;
+        const size = surface.getComponent(UITransform)?.width ?? 0;
+        if (size <= 0) return;
+        for (const sheen of this.placementSheens.keys()) {
+            if (!sheen.isValid || sheen.parent === surface) this.clearPlacementSheen(sheen);
+        }
+        const sheen = new Node('PlacementSheen');
+        sheen.layer = surface.layer;
+        sheen.parent = surface;
+        // 每帧四周留有 3px 透明边；26px 对应完整珠子的尺寸。
+        sheen.addComponent(UITransform).setContentSize(size * 32 / 26, size * 32 / 26);
+        const sprite = sheen.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        sprite.spriteFrame = this.placementFrames[0];
+        sprite.color = Color.WHITE;
+        this.placementSheens.set(sheen, { sprite, elapsed: 0 });
+        const heldFrame = this.readPlacementPreviewFrame();
+        if (heldFrame !== null) sprite.spriteFrame = this.placementFrames[heldFrame];
+    }
 
-        Tween.stopAllByTarget(gem);
-        gem.setScale(1, 1, 1);
-        tween(gem)
-            .to(0.12, { scale: new Vec3(1.18, 1.18, 1) }, { easing: 'quadOut' })
-            .to(0.1, { scale: new Vec3(0.94, 0.94, 1) }, { easing: 'sineInOut' })
-            .to(0.12, { scale: new Vec3(1.06, 1.06, 1) }, { easing: 'sineOut' })
-            .to(0.1, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
-            .start();
+    update(dt: number): void {
+        const heldFrame = this.readPlacementPreviewFrame();
+        for (const [sheen, animation] of this.placementSheens) {
+            if (!sheen.isValid || !sheen.activeInHierarchy) {
+                this.clearPlacementSheen(sheen);
+                continue;
+            }
+            if (heldFrame !== null) continue;
+            animation.elapsed += dt;
+            const index = Math.floor(animation.elapsed * 30);
+            if (index >= this.placementFrames.length) this.clearPlacementSheen(sheen);
+            else animation.sprite.spriteFrame = this.placementFrames[index];
+        }
+    }
 
-        this.flashGemSprite(gem);
-        this.spawnSparks(gem);
+    /** 仅编辑器预览可固定帧，便于在真实棋盘上逐帧对照。 */
+    private readPlacementPreviewFrame(): number | null {
+        if (!PREVIEW || typeof location === 'undefined') return null;
+        const value = new URLSearchParams(location.search).get('preview-shine-frame');
+        if (value === null) return null;
+        const frame = Number(value);
+        return Number.isInteger(frame) && frame >= 0 && frame < 28 ? frame : null;
+    }
+
+    private clearPlacementSheen(sheen: Node): void {
+        this.placementSheens.delete(sheen);
+        if (sheen.isValid) sheen.destroy();
+    }
+
+    private placementVersion = 0;
+
+    private clearPlacements(): void {
+        this.placementVersion++;
+        for (const sheen of this.placementSheens.keys()) this.clearPlacementSheen(sheen);
+    }
+
+    onDisable(): void {
+        this.clearPlacements();
+    }
+
+    onDestroy(): void {
+        this.clearPlacements();
+        for (const frame of this.placementFrames) frame.destroy();
+        this.placementFrames.length = 0;
     }
 
     /**
@@ -152,6 +244,7 @@ export class JewelEffects extends Component {
      * 进入下一关前恢复棋盘，并藏起文物。
      */
     public resetBoardVisual(board: Node, artifact: Node | null): void {
+        this.clearPlacements();
         this.hideWandRegion();
         const boardOpacity = board.getComponent(UIOpacity);
         if (boardOpacity) {
@@ -289,58 +382,6 @@ export class JewelEffects extends Component {
         const opacity = region.getComponent(UIOpacity);
         if (opacity) Tween.stopAllByTarget(opacity);
         region.destroy();
-    }
-
-    private flashGemSprite(gem: Node): void {
-        const sprite = gem.getChildByName('GemSprite')?.getComponent(Sprite);
-        if (!sprite) return;
-
-        Tween.stopAllByTarget(sprite);
-        tween(sprite)
-            .to(0.1, { color: new Color(255, 244, 180, 255) })
-            .to(0.24, { color: new Color(255, 255, 255, 255) })
-            .start();
-    }
-
-    private spawnSparks(gem: Node): void {
-        if (this.sparkPrefab) {
-            this.attachPrefab(this.sparkPrefab, gem, 'PlaceSparks', 0.45);
-            return;
-        }
-
-        gem.getChildByName('PlaceSparks')?.destroy();
-        const root = new Node('PlaceSparks');
-        root.layer = gem.layer;
-        root.parent = gem;
-
-        const count = 6;
-        for (let i = 0; i < count; i++) {
-            const dot = new Node(`Spark_${i}`);
-            dot.layer = gem.layer;
-            dot.parent = root;
-            dot.addComponent(UITransform).setContentSize(8, 8);
-
-            const graphics = dot.addComponent(Graphics);
-            graphics.fillColor = new Color(255, 236, 170, 255);
-            graphics.circle(0, 0, 3);
-            graphics.fill();
-
-            const angle = (Math.PI * 2 * i) / count;
-            const opacity = dot.addComponent(UIOpacity);
-            tween(dot)
-                .to(0.28, {
-                    position: new Vec3(Math.cos(angle) * 28, Math.sin(angle) * 28, 0)
-                }, { easing: 'quadOut' })
-                .start();
-            tween(opacity).to(0.28, { opacity: 0 }).start();
-        }
-
-        tween(root)
-            .delay(0.32)
-            .call(() => {
-                if (root.isValid) root.destroy();
-            })
-            .start();
     }
 
     private flashCast(origin: Node): void {

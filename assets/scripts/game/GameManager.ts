@@ -1840,13 +1840,10 @@ onLoad() {
     }
 
     private flashCompletedRegions(): void {
-        const token = this.finishToken;
         for (const region of this.targetRegions) {
             if (this.flashedRegions.has(region) || !region.every(cell => cell.isValid && cell.isCorrect())) continue;
             this.flashedRegions.add(region);
-            const task = new GemCompletionShine().playRegion(region,
-                () => !this.isValid || token !== this.finishToken);
-            this.regionShines.push(task);
+            // 归位高光由 effects 按落地顺序播放，区域完成不再叠加整片闪星。
         }
         const finished = this.colorsFullyPlaced();
         let granted = 0;
@@ -2022,6 +2019,18 @@ onLoad() {
                     this.flashedRegions = new Set(this.targetRegions.filter(region => region.every(cell => cell.isCorrect())));
                     this.grantedColors = new Set(this.colorsFullyPlaced());
                     this.regionShines = [];
+                    // 仅在明确指定的编辑器预览中演示实际棋盘上的反光。
+                    if (PREVIEW && typeof location !== 'undefined' &&
+                        new URLSearchParams(location.search).has('preview-shine')) {
+                        const cells = this.boardManager!.getCells().filter(cell => cell.currentColor !== null).slice(0, 12);
+                        const show = () => cells.forEach((cell, index) => {
+                            this.scheduleOnce(() => {
+                                if (cell.isValid) this.effects?.playGemPlaced(cell.node);
+                            }, index * 0.07);
+                        });
+                        this.scheduleOnce(show, 0.5);
+                        if (!new URLSearchParams(location.search).has('preview-shine-frame')) this.schedule(show, 2);
+                    }
                     void trayReady.then(() => { if (this.isValid) this.finished = false; });
                     if (steps.length === 0) return;
                     const canvas = this.node.parent;

@@ -114,13 +114,13 @@ export class GemMoveAnimator extends Component {
             const flyer = this.makeFlyer(shot.size, move.frame, shot.color);
             flyer.setPosition(startPos);
 
+            const sequential = move.sequential === true;
             const endScale = shot.endSize / shot.size;
             const lifted = new Vec3(sequential ? 1.12 : 1.22, sequential ? 1.12 : 1.22, 1);
             const landed = new Vec3(endScale, endScale, 1);
             const squash = new Vec3(endScale * 1.08, endScale * 0.9, 1);
             const delay = Math.max(0, move.delay ?? 0);
             const flightTime = sequential ? FLIGHT_TIME : PLACE_FLIGHT_TIME;
-            const sequential = move.sequential === true;
             if (delay > maxDelay) maxDelay = delay;
             const opacity = sequential ? flyer.addComponent(UIOpacity) : null;
             if (opacity) opacity.opacity = 0;
@@ -167,7 +167,6 @@ export class GemMoveAnimator extends Component {
                 })
                 .call(() => {
                     if (flyer.isValid) flyer.setPosition(endPos);
-                    if (!sequential) this.sheen(endPos, shot.endSize);
                 })
                 .to(0.06, { scale: squash }, { easing: 'quadOut' })
                 .to(0.08, { scale: landed }, { easing: 'sineOut' })
@@ -407,34 +406,6 @@ export class GemMoveAnimator extends Component {
         sprite.color = Color.WHITE;
         if (color) drawBead(flyer, size, color);
         return flyer;
-    }
-
-    /**
-     * 归位棋子表面的一小块高光，不超出珠子。按落地顺序各闪一次。
-     */
-    private sheen(at: Vec3, beadSize: number): void {
-        const node = new Node('LandSheen');
-        node.layer = Layers.Enum.UI_2D;
-        node.parent = this.node;
-        const size = Math.max(8, beadSize);
-        node.setPosition(at.x - size * 0.08, at.y + size * 0.1, 0);
-        node.addComponent(UITransform).setContentSize(size, size);
-        const graphics = node.addComponent(Graphics);
-        const length = size * 0.22;
-        graphics.lineWidth = Math.max(1.6, size * 0.07);
-        graphics.lineCap = Graphics.LineCap.ROUND;
-        graphics.strokeColor = new Color(255, 255, 255, 220);
-        graphics.moveTo(-length, length * 0.35);
-        graphics.lineTo(length * 0.15, -length * 0.2);
-        graphics.stroke();
-        const opacity = node.addComponent(UIOpacity);
-        opacity.opacity = 255;
-        tween(opacity).to(0.16, { opacity: 0 }, { easing: 'sineIn' }).start();
-        this.scheduleOnce(() => {
-            if (!node.isValid) return;
-            Tween.stopAllByTarget(opacity);
-            node.destroy();
-        }, 0.18);
     }
 
     /**
