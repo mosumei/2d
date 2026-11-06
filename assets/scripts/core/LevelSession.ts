@@ -10,8 +10,8 @@ interface ProgressData {
     }>;
 }
 
-/** 正式版本目前做到第二关。 */
-export const MAX_LEVEL = 2;
+/** 正式版本目前做到第三关。 */
+export const MAX_LEVEL = 3;
 
 export class LevelSession {
 

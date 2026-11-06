@@ -1852,7 +1852,7 @@ onLoad() {
             this.grantedColors.add(color);
             granted += 1;
         }
-        if (granted > 0) this.trayManager?.grantRows(granted);
+        if (granted > 0) this.trayManager?.grantSlots(granted * 3);
     }
 
     /** 整张图里已经全部归位的目标颜色。 */
@@ -2326,7 +2326,8 @@ onLoad() {
             'ui/home/btn_start/spriteFrame',
             'ui/home/btn_collection/spriteFrame',
             'ui/home/icon_temple/spriteFrame',
-            'ui/game/btn_gea/spriteFrame'
+            'ui/game/btn_gea/spriteFrame',
+            'ui/game/magnificent/spriteFrame'
         ];
         const artwork = ARTIFACTS[level]?.image;
         const extras: Promise<void>[] = [];

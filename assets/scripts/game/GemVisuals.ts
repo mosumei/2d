@@ -28,8 +28,8 @@ export function usesIllustratedGem(color: GemColor): boolean {
     return ILLUSTRATED.has(color);
 }
 
-/** 插图珠相对插槽的边长。切图四周有空白，按整格绘制时珠子仍留一圈槽边。 */
-export const ILLUSTRATED_GEM_RATIO = 1;
+/** 插图珠相对插槽的边长。60 的格子上珠子是 51。 */
+export const ILLUSTRATED_GEM_RATIO = 0.85;
 
 /** 灰色矢量珠相对格子的边长。 */
 export const VECTOR_GEM_RATIO = 0.72;

@@ -76,8 +76,8 @@ public getFirstEmptySlot(): number {
     private readonly barPadY = 14;
     /** 底边青绿按钮的高度。一半压在托盘上，一半探出去。 */
     private readonly addPillHeight = 46;
-    /** 一行 12 个孔，托盘最多四行。 */
-    private readonly maxSlots = 48;
+    /** 一行 12 个孔，托盘最多六行。 */
+    private readonly maxSlots = 72;
 
 public resetTray(capacity: number): Promise<void> {
     this.capacity = capacity;
@@ -152,14 +152,6 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     /**
-     * 完成一种颜色时加三个空槽。新孔逐个弹出，托盘底板闪一下。
-     * @param colors 这次归位的颜色数
-     */
-    public grantRows(colors: number) {
-        this.grantSlots(colors * 3);
-    }
-
-    /**
      * 在已有槽位后面追加空孔，并逐个弹出。
      * @param count 要加的空孔数
      */
@@ -220,7 +212,7 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     /**
-     * 按当前槽位画托盘底板，金边圆角，底边挂着青绿按钮。
+     * 按当前槽位画托盘底板。圆角奶油色，外圈用软阴影托起，底边挂着青绿按钮。
      */
     private resizeShelf(): void {
         if (this.slots.length === 0) return;
@@ -243,28 +235,19 @@ public resetTray(capacity: number): Promise<void> {
             backing.addComponent(UITransform);
             backing.addComponent(Graphics);
         }
-        backing.setSiblingIndex(0);
-        backing.setPosition(0, (minY + maxY) / 2, 0);
+        const centerY = (minY + maxY) / 2;
+        backing.setPosition(0, centerY, 0);
         backing.getComponent(UITransform)?.setContentSize(this.barWidth, height);
+        const radius = Math.min(36, height * 0.42);
         const graphics = backing.getComponent(Graphics);
         if (graphics) {
-            const radius = Math.min(36, height * 0.42);
-            const line = 3;
             graphics.clear();
             graphics.fillColor = new Color(255, 248, 236, 255);
             graphics.roundRect(-this.barWidth / 2, -height / 2, this.barWidth, height, radius);
             graphics.fill();
-            graphics.lineWidth = line;
-            graphics.strokeColor = new Color(206, 168, 96, 255);
-            graphics.roundRect(
-                -this.barWidth / 2 + line / 2,
-                -height / 2 + line / 2,
-                this.barWidth - line,
-                height - line,
-                Math.max(1, radius - line / 2)
-            );
-            graphics.stroke();
         }
+        this.paintShelfShadow(this.barWidth, height, radius, centerY);
+        backing.setSiblingIndex(1);
         this.ensureAddPill(backing, height);
         this.ensureSlotDash();
         this.node.getComponent(UITransform)?.setContentSize(this.barWidth, height + this.addPillHeight);
@@ -273,7 +256,43 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     /**
-     * 整条托盘都能点。点在金边或孔之间时，选中最近的那一颗。
+     * 底板外面的一圈软阴影。叠在底板后面，不接收点击。
+     */
+    private paintShelfShadow(width: number, height: number, radius: number, centerY: number): void {
+        let shadow = this.node.getChildByName('ShelfShadow');
+        if (!shadow?.isValid) {
+            shadow = new Node('ShelfShadow');
+            shadow.layer = Layers.Enum.UI_2D;
+            shadow.parent = this.node;
+            shadow.addComponent(Graphics);
+            const transform = shadow.addComponent(UITransform);
+            transform.hitTest = () => false;
+        }
+        shadow.setPosition(0, centerY, 0);
+        shadow.setSiblingIndex(0);
+        shadow.getComponent(UITransform)?.setContentSize(width + 12, height + 12);
+        const graphics = shadow.getComponent(Graphics);
+        if (!graphics) return;
+        graphics.clear();
+        const layers = 5;
+        for (let index = layers; index >= 1; index--) {
+            const spread = 0.4 + index * 0.5;
+            const drop = 0.5 + index * 0.15;
+            const alpha = Math.round(3 + 7 * (1 - index / layers));
+            graphics.fillColor = new Color(196, 176, 148, alpha);
+            graphics.roundRect(
+                -width / 2 - spread + 0.4,
+                -height / 2 - spread - drop,
+                width + spread * 2,
+                height + spread * 2,
+                radius + spread * 0.4
+            );
+            graphics.fill();
+        }
+    }
+
+    /**
+     * 整条托盘都能点。点在底板或孔之间时，选中最近的那一颗。
      */
     private bindTrayTouch() {
         const ui = this.node.getComponent(UITransform);
@@ -287,8 +306,9 @@ public resetTray(capacity: number): Promise<void> {
         const shelf = this.node.getChildByName('Shelf');
         const shelfUi = shelf?.getComponent(UITransform);
         if (shelfUi?.hitTest(screenPoint, windowId)) return true;
-        const pill = shelf?.getChildByName('AddPill')?.getComponent(UITransform);
-        return pill?.hitTest(screenPoint, windowId) ?? false;
+        const pillNode = shelf?.getChildByName('AddPill');
+        if (!pillNode?.active) return false;
+        return pillNode.getComponent(UITransform)?.hitTest(screenPoint, windowId) ?? false;
     }
 
     private onTrayTouch(event: EventTouch) {
@@ -339,7 +359,7 @@ public resetTray(capacity: number): Promise<void> {
     private hitsAddPill(shelf: Node, x: number, y: number): boolean {
         const pill = shelf.getChildByName('AddPill');
         const pillUi = pill?.getComponent(UITransform);
-        if (!pill?.isValid || !pillUi) return false;
+        if (!pill?.isValid || !pill.active || !pillUi) return false;
         const centerX = shelf.position.x + pill.position.x;
         const centerY = shelf.position.y + pill.position.y;
         const halfWidth = pillUi.contentSize.width / 2;
@@ -391,6 +411,7 @@ public resetTray(capacity: number): Promise<void> {
             icon.getComponent(UITransform)?.setContentSize(42, 34);
         }
         pill.setPosition(0, -barHeight / 2 - this.addPillHeight / 2 + 12, 0);
+        pill.active = this.slots.length < this.maxSlots;
     }
 
     private onAddPillClick() {
@@ -666,7 +687,9 @@ public resetTray(capacity: number): Promise<void> {
         const shelf = this.node.getChildByName('Shelf');
         const height = shelf?.getComponent(UITransform)?.contentSize.height ?? 0;
         if (!shelf?.isValid || height <= 0) return null;
-        return shelf.position.y - height / 2 - this.addPillHeight + 12;
+        const pill = shelf.getChildByName('AddPill');
+        const hang = pill?.active ? this.addPillHeight - 12 : 0;
+        return shelf.position.y - height / 2 - hang;
     }
 
     /**
@@ -681,7 +704,7 @@ public resetTray(capacity: number): Promise<void> {
 
     private createSlots() {
         for (const child of [...this.node.children]) {
-            if (child.name === 'Shelf' || child.name === 'SlotDash') continue;
+            if (child.name === 'Shelf' || child.name === 'ShelfShadow' || child.name === 'SlotDash') continue;
             child.destroy();
         }
 
