@@ -1287,7 +1287,7 @@ onLoad() {
             );
         }
 
-        const changed = [...nextCell.keys()];
+        const changed = Array.from(nextCell.keys());
         return {
             moves,
             changed,
@@ -2004,7 +2004,9 @@ onLoad() {
             }
 
             this.boardGesture?.resetView();
-            const trayReady = this.trayManager!.resetTray(12);
+            // 第一关一行。第二关起开局四行，每行 12 个孔。
+            const traySlots = data.id <= 1 ? 12 : 48;
+            const trayReady = this.trayManager!.resetTray(traySlots);
             const steps = readTutorialSteps(data.tutorialSteps);
             this.tutorial?.stop();
             this.tutorial = null;

@@ -9,6 +9,7 @@ import {
 
 import type { GemPalette } from '../game/GemVisuals';
 import { GEM_COLOR_LETTERS } from '../game/GemCell';
+import { scrambleLevel } from './LevelScramble';
 import { MAX_LEVEL } from './LevelSession';
 
 const LEVEL_COLOR_PATTERN = new RegExp(`^[${Object.keys(GEM_COLOR_LETTERS).join('')}.]+$`);
@@ -106,6 +107,8 @@ export class LevelManager extends Component {
                     return;
                 }
 
+                // 开局不读关卡里写死的摆法，每关都按成品现算。
+                data.initial = scrambleLevel(data.target);
                 this.currentLevel = number;
 
                 console.log(
@@ -143,6 +146,8 @@ export class LevelManager extends Component {
                 return;
             }
 
+            // 教学关同样按成品现算开局。
+            data.initial = scrambleLevel(data.target);
             callback(data);
         });
     }

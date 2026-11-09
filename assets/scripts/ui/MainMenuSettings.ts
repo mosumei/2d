@@ -11,19 +11,28 @@ import {
     SpriteFrame,
     Tween,
     tween,
-    UIOpacity,
     UITransform
 } from 'cc';
 
 import { GameSettings } from '../core/GameSettings';
 import { LevelSession } from '../core/LevelSession';
-import { currentLanguage, localize } from '../core/Locale';
+import { localize } from '../core/Locale';
 
-type ToggleKey = 'music' | 'vibration' | 'sound';
-type MenuAction = 'feedback' | 'share' | 'save' | 'privacy';
+type ToggleKey = 'music' | 'sound';
+type MenuAction = 'feedback' | 'share' | 'privacy';
+
+/** 设计稿是 375 宽，游戏画布是 720。 */
+const SCALE = 720 / 375;
+
+const BROWN = new Color(122, 72, 36, 255);
+const ROW_TEXT = new Color(166, 124, 78, 255);
+const ROW_FILL = new Color(250, 243, 234, 255);
+const ROW_STROKE = new Color(233, 207, 177, 255);
+const CLOSE_FILL = new Color(253, 243, 230, 255);
+const CLOSE_STROKE = new Color(220, 186, 146, 255);
 
 /**
- * 主页左上角的设置。弹窗用切图，不改主菜单场景。
+ * 主页左上角的设置。弹窗按首页切图排，不改主菜单场景。
  */
 export class MainMenuSettings {
 
@@ -80,90 +89,81 @@ export class MainMenuSettings {
         dim.addComponent(UITransform).setContentSize(900, 1700);
         dim.addComponent(BlockInputEvents);
         const dimGraphics = dim.addComponent(Graphics);
-        dimGraphics.fillColor = new Color(20, 24, 32, 170);
+        dimGraphics.fillColor = new Color(20, 24, 32, 150);
         dimGraphics.rect(-450, -850, 900, 1700);
         dimGraphics.fill();
         dim.on(Node.EventType.TOUCH_END, () => {
-            MainMenuSettings.hideLanguageMenu(panel);
             panel.active = false;
         });
 
+        const cardWidth = MainMenuSettings.px(307);
+        const cardHeight = MainMenuSettings.px(335);
         const card = new Node('Card');
         card.layer = Layers.Enum.UI_2D;
         card.parent = panel;
-        card.setPosition(0, 20, 0);
-        card.addComponent(UITransform).setContentSize(599, 811);
+        card.setPosition(0, -MainMenuSettings.px(15.5), 0);
+        card.addComponent(UITransform).setContentSize(cardWidth, cardHeight);
         card.addComponent(BlockInputEvents);
-        MainMenuSettings.addSprite(card, 'ui/settings/panel_settings/spriteFrame', 599, 811);
+        MainMenuSettings.addSprite(card, 'ui/settings/home/panel/spriteFrame', cardWidth, cardHeight);
+
+        const titleWidth = MainMenuSettings.px(158);
+        const titleHeight = MainMenuSettings.px(46.5);
+        const titleFrame = new Node('TitleFrame');
+        titleFrame.layer = Layers.Enum.UI_2D;
+        titleFrame.parent = card;
+        titleFrame.setPosition(0, MainMenuSettings.px(167), 0);
+        titleFrame.addComponent(UITransform).setContentSize(titleWidth, titleHeight);
+        MainMenuSettings.addSprite(titleFrame, 'ui/settings/home/title_frame/spriteFrame', titleWidth, titleHeight);
 
         const title = MainMenuSettings.addLabel(
-            card, '', 280, 64, 44, Color.WHITE, Label.HorizontalAlign.CENTER
+            card, '', titleWidth - 24, titleHeight - 16, 34, BROWN, Label.HorizontalAlign.CENTER
         );
         title.node.name = 'PanelTitle';
-        title.node.setPosition(0, 327, 0);
-        title.enableOutline = true;
-        title.outlineColor = new Color(24, 110, 196, 255);
-        title.outlineWidth = 3;
+        title.node.setPosition(0, MainMenuSettings.px(164), 0);
 
-        const sheet = new Node('Sheet');
-        sheet.layer = Layers.Enum.UI_2D;
-        sheet.parent = card;
-        sheet.setPosition(0, -70, 0);
-        sheet.addComponent(UITransform).setContentSize(536, 533);
-        const sheetGraphics = sheet.addComponent(Graphics);
-        sheetGraphics.fillColor = new Color(255, 255, 255, 255);
-        sheetGraphics.roundRect(-268, -266, 536, 533, 36);
-        sheetGraphics.fill();
-
-        const toggles: { key: ToggleKey; icon: string; x: number }[] = [
-            { key: 'sound', icon: 'icon_sound', x: -149 },
-            { key: 'music', icon: 'icon_music', x: 0 },
-            { key: 'vibration', icon: 'icon_vibration', x: 149 }
+        const toggles: { key: ToggleKey; x: number }[] = [
+            { key: 'music', x: -MainMenuSettings.px(58.5) },
+            { key: 'sound', x: MainMenuSettings.px(58.5) }
         ];
         for (const item of toggles) {
-            const button = MainMenuSettings.addSpriteButton(
-                card, `Toggle_${item.key}`, `ui/settings/${item.icon}/spriteFrame`,
-                item.x, 125, 93, 93, () => {
-                    MainMenuSettings.hideLanguageMenu(panel);
-                    MainMenuSettings.toggle(panel, item.key);
-                }
+            MainMenuSettings.addSpriteButton(
+                card,
+                `Toggle_${item.key}`,
+                MainMenuSettings.togglePath(item.key, false),
+                item.x,
+                MainMenuSettings.px(69.5),
+                MainMenuSettings.px(62),
+                MainMenuSettings.px(58),
+                () => MainMenuSettings.toggle(panel, item.key)
             );
-            button.addComponent(UIOpacity);
         }
 
-        const rows: { name: string; icon: string; arrow: string; y: number; action?: MenuAction }[] = [
-            { name: 'Language', icon: 'icon_language', arrow: 'icon_arrow_down', y: 12 },
-            { name: 'Action_feedback', icon: 'icon_feedback', arrow: 'icon_arrow_right', y: -59, action: 'feedback' },
-            { name: 'Action_share', icon: 'icon_share', arrow: 'icon_arrow_right', y: -130, action: 'share' },
-            { name: 'Action_save', icon: 'icon_save', arrow: 'icon_arrow_right', y: -200, action: 'save' },
-            { name: 'Action_privacy', icon: 'icon_privacy', arrow: 'icon_arrow_right', y: -271, action: 'privacy' }
+        const rows: { name: string; icon: string; text: string; action: MenuAction }[] = [
+            { name: 'Action_feedback', icon: 'icon_feedback', text: '意见反馈', action: 'feedback' },
+            { name: 'Action_share', icon: 'icon_share', text: '分享给好友', action: 'share' },
+            { name: 'Action_privacy', icon: 'icon_privacy', text: '隐私政策', action: 'privacy' }
         ];
-        for (const row of rows) {
-            MainMenuSettings.addSettingRow(card, row.name, row.icon, row.arrow, row.y, () => {
-                if (row.name === 'Language') {
-                    MainMenuSettings.toggleLanguageMenu(panel);
-                    return;
-                }
-                MainMenuSettings.hideLanguageMenu(panel);
-                if (row.action) MainMenuSettings.onAction(panel, row.action);
-            });
-        }
-        MainMenuSettings.createLanguageMenu(card, panel);
+        const rowPitch = MainMenuSettings.px(46);
+        const middleRow = -MainMenuSettings.px(55.5);
+        rows.forEach((row, index) => {
+            MainMenuSettings.addSettingRow(
+                card,
+                row.name,
+                row.icon,
+                middleRow + (1 - index) * rowPitch,
+                () => MainMenuSettings.onAction(panel, row.action)
+            );
+        });
+
+        MainMenuSettings.addCloseButton(card, () => {
+            panel.active = false;
+        });
 
         const tip = MainMenuSettings.addLabel(
-            card, '', 400, 32, 20, new Color(46, 130, 220, 255), Label.HorizontalAlign.CENTER
+            panel, '', 420, 36, 22, BROWN, Label.HorizontalAlign.CENTER
         );
-        tip.node.setPosition(0, -320, 0);
+        tip.node.setPosition(0, card.position.y - cardHeight / 2 - 36, 0);
         tip.node.name = 'Tip';
-
-        const close = MainMenuSettings.addSpriteButton(
-            card, 'CloseButton', 'ui/settings/btn_close/spriteFrame',
-            232, 362, 80, 80, () => {
-                MainMenuSettings.hideLanguageMenu(panel);
-                panel.active = false;
-            }
-        );
-        close.setSiblingIndex(card.children.length - 1);
 
         return panel;
     }
@@ -172,9 +172,6 @@ export class MainMenuSettings {
         switch (key) {
             case 'music':
                 GameSettings.setMusicEnabled(!GameSettings.isMusicEnabled());
-                break;
-            case 'vibration':
-                GameSettings.setVibrationEnabled(!GameSettings.isVibrationEnabled());
                 break;
             case 'sound':
                 GameSettings.setSoundEnabled(!GameSettings.isSoundEnabled());
@@ -190,10 +187,6 @@ export class MainMenuSettings {
 
     private static onAction(panel: Node, action: MenuAction): void {
         switch (action) {
-            case 'save':
-                LevelSession.flushProgress();
-                MainMenuSettings.showTip(panel, localize('已保存', 'Saved'));
-                break;
             case 'feedback':
             case 'share':
             case 'privacy':
@@ -212,18 +205,14 @@ export class MainMenuSettings {
 
         const card = panel.getChildByName('Card');
         const title = card?.getChildByName('PanelTitle')?.getComponent(Label);
-        if (title) title.string = localize('设置', 'Settings');
+        if (title) title.string = localize('游戏设置', 'Settings');
 
-        MainMenuSettings.setRowTitle(card, 'Language', localize('语言', 'Language'));
-        MainMenuSettings.setRowTitle(card, 'Action_feedback', localize('反馈', 'Feedback'));
+        MainMenuSettings.setRowTitle(card, 'Action_feedback', localize('意见反馈', 'Feedback'));
         MainMenuSettings.setRowTitle(card, 'Action_share', localize('分享给好友', 'Share With Friends'));
-        MainMenuSettings.setRowTitle(card, 'Action_save', localize('保存进度', 'Save Your Progress'));
         MainMenuSettings.setRowTitle(card, 'Action_privacy', localize('隐私政策', 'Privacy Policy'));
-        MainMenuSettings.refreshLanguageMenu(panel);
 
         const settings = GameSettings.load();
         MainMenuSettings.setToggle(panel, 'music', settings.musicEnabled);
-        MainMenuSettings.setToggle(panel, 'vibration', settings.vibrationEnabled);
         MainMenuSettings.setToggle(panel, 'sound', settings.soundEnabled);
     }
 
@@ -241,93 +230,45 @@ export class MainMenuSettings {
         if (label) label.string = text;
     }
 
-    private static createLanguageMenu(card: Node, panel: Node): void {
-        const menu = new Node('LanguageMenu');
-        menu.layer = Layers.Enum.UI_2D;
-        menu.parent = card;
-        menu.setPosition(130, -92, 0);
-        menu.addComponent(UITransform).setContentSize(210, 128);
-        menu.addComponent(BlockInputEvents);
-        MainMenuSettings.paint(menu, 210, 128, 16, Color.WHITE, new Color(46, 130, 220, 255));
-        menu.active = false;
-
-        const options: Array<'zh' | 'en'> = ['zh', 'en'];
-        const titles = ['中文', 'English'];
-        options.forEach((code, index) => {
-            const row = new Node(`Option_${code}`);
-            row.layer = Layers.Enum.UI_2D;
-            row.parent = menu;
-            row.setPosition(0, 28 - index * 56, 0);
-            row.addComponent(UITransform).setContentSize(190, 48);
-
-            const dot = new Node('Dot');
-            dot.layer = Layers.Enum.UI_2D;
-            dot.parent = row;
-            dot.setPosition(-72, 0, 0);
-            dot.addComponent(UITransform).setContentSize(24, 24);
-            dot.addComponent(Graphics);
-
-            const label = MainMenuSettings.addLabel(
-                row, titles[index], 130, 40, 22, new Color(46, 130, 220, 255), Label.HorizontalAlign.LEFT
-            );
-            label.node.setPosition(16, 0, 0);
-
-            const button = row.addComponent(Button);
-            button.transition = Button.Transition.SCALE;
-            button.zoomScale = 1.03;
-            row.on(Button.EventType.CLICK, () => {
-                GameSettings.setLanguage(code);
-                MainMenuSettings.hideLanguageMenu(panel);
-                MainMenuSettings.refresh(panel);
-                MainMenuSettings.showTip(panel, '');
-            });
+    private static setToggle(panel: Node, key: ToggleKey, enabled: boolean): void {
+        const sprite = panel.getChildByName('Card')
+            ?.getChildByName(`Toggle_${key}`)
+            ?.getComponent(Sprite);
+        if (!sprite) return;
+        const path = MainMenuSettings.togglePath(key, enabled);
+        resources.load(path, SpriteFrame, (error, frame) => {
+            if (error || !frame || !sprite.isValid) {
+                if (error) console.error(`[MainMenu] 加载 ${path} 失败`, error);
+                return;
+            }
+            sprite.spriteFrame = frame;
         });
     }
 
-    private static toggleLanguageMenu(panel: Node): void {
-        const menu = panel.getChildByName('Card')?.getChildByName('LanguageMenu');
-        if (!menu) return;
-        menu.active = !menu.active;
-        if (!menu.active) return;
-        menu.setSiblingIndex((menu.parent?.children.length ?? 1) - 1);
-        MainMenuSettings.refreshLanguageMenu(panel);
-    }
-
-    private static hideLanguageMenu(panel: Node): void {
-        const menu = panel.getChildByName('Card')?.getChildByName('LanguageMenu');
-        if (menu) menu.active = false;
-    }
-
-    private static refreshLanguageMenu(panel: Node): void {
-        const menu = panel.getChildByName('Card')?.getChildByName('LanguageMenu');
-        if (!menu) return;
-        const selected = currentLanguage();
-        const options: Array<'zh' | 'en'> = ['zh', 'en'];
-        for (const code of options) {
-            const dot = menu.getChildByName(`Option_${code}`)?.getChildByName('Dot')?.getComponent(Graphics);
-            if (!dot) continue;
-            dot.clear();
-            dot.lineWidth = 3;
-            dot.strokeColor = new Color(46, 130, 220, 255);
-            dot.circle(0, 0, 10);
-            dot.stroke();
-            if (code !== selected) continue;
-            dot.fillColor = new Color(46, 130, 220, 255);
-            dot.circle(0, 0, 6);
-            dot.fill();
+    /**
+     * 打开用没有斜杠的米色图标，关闭换成带斜杠的。
+     * @param key 音乐或音效
+     * @param enabled 是否打开
+     */
+    private static togglePath(key: ToggleKey, enabled: boolean): string {
+        switch (key) {
+            case 'music':
+                return enabled
+                    ? 'ui/pause/btn_music/spriteFrame'
+                    : 'ui/settings/home/icon_music_off/spriteFrame';
+            case 'sound':
+                return enabled
+                    ? 'ui/pause/btn_sound/spriteFrame'
+                    : 'ui/settings/home/icon_sound_off/spriteFrame';
+            default: {
+                const unexpected: never = key;
+                return unexpected;
+            }
         }
     }
 
-    private static setToggle(panel: Node, key: ToggleKey, enabled: boolean): void {
-        const opacity = panel.getChildByName('Card')
-            ?.getChildByName(`Toggle_${key}`)
-            ?.getComponent(UIOpacity);
-        if (!opacity) return;
-        opacity.opacity = enabled ? 255 : 110;
-    }
-
     private static showTip(panel: Node, text: string): void {
-        const tip = panel.getChildByName('Card')?.getChildByName('Tip')?.getComponent(Label);
+        const tip = panel.getChildByName('Tip')?.getComponent(Label);
         if (!tip) return;
         Tween.stopAllByTarget(tip.node);
         tip.string = text;
@@ -340,9 +281,41 @@ export class MainMenuSettings {
             .start();
     }
 
+    private static addCloseButton(card: Node, onClick: () => void): void {
+        const size = MainMenuSettings.px(31);
+        const node = new Node('CloseButton');
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = card;
+        node.setPosition(MainMenuSettings.px(137.5), MainMenuSettings.px(164.5), 0);
+        node.addComponent(UITransform).setContentSize(size, size);
+        const graphics = node.addComponent(Graphics);
+        const radius = size / 2 - 1;
+        graphics.fillColor = CLOSE_FILL;
+        graphics.circle(0, 0, radius);
+        graphics.fill();
+        graphics.strokeColor = CLOSE_STROKE;
+        graphics.lineWidth = 2;
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.strokeColor = BROWN;
+        graphics.lineWidth = 3;
+        graphics.moveTo(-7, -7);
+        graphics.lineTo(7, 7);
+        graphics.stroke();
+        graphics.moveTo(-7, 7);
+        graphics.lineTo(7, -7);
+        graphics.stroke();
+
+        const button = node.addComponent(Button);
+        button.transition = Button.Transition.SCALE;
+        button.zoomScale = 1.06;
+        node.on(Button.EventType.CLICK, onClick);
+    }
+
     private static addSprite(parent: Node, path: string, width: number, height: number): Sprite {
         const sprite = parent.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        sprite.trim = false;
         resources.load(path, SpriteFrame, (error, frame) => {
             if (error || !frame || !parent.isValid) {
                 if (error) console.error(`[MainMenu] 加载 ${path} 失败`, error);
@@ -381,22 +354,28 @@ export class MainMenuSettings {
         card: Node,
         name: string,
         icon: string,
-        arrow: string,
         y: number,
         onClick: () => void
     ): void {
+        const width = MainMenuSettings.px(255);
+        const height = MainMenuSettings.px(32);
+        const radius = MainMenuSettings.px(18);
         const row = new Node(name);
         row.layer = Layers.Enum.UI_2D;
         row.parent = card;
         row.setPosition(0, y, 0);
-        row.addComponent(UITransform).setContentSize(473, 65);
+        row.addComponent(UITransform).setContentSize(width, height);
         const plate = row.addComponent(Graphics);
-        plate.fillColor = new Color(8, 13, 9, 45);
-        plate.roundRect(-236, -36, 473, 65, 29);
+        plate.fillColor = ROW_FILL;
+        plate.roundRect(-width / 2, -height / 2, width, height, radius);
         plate.fill();
-        plate.fillColor = new Color(253, 253, 253, 255);
-        plate.roundRect(-236, -32, 473, 65, 29);
-        plate.fill();
+        plate.strokeColor = ROW_STROKE;
+        plate.lineWidth = 2;
+        plate.roundRect(-width / 2, -height / 2, width, height, radius);
+        plate.stroke();
+        plate.moveTo(-MainMenuSettings.px(78), -height * 0.28);
+        plate.lineTo(-MainMenuSettings.px(78), height * 0.28);
+        plate.stroke();
         const button = row.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.03;
@@ -405,40 +384,32 @@ export class MainMenuSettings {
         const glyph = new Node('Glyph');
         glyph.layer = Layers.Enum.UI_2D;
         glyph.parent = row;
-        glyph.setPosition(-199, 0, 0);
-        glyph.addComponent(UITransform).setContentSize(43, 43);
-        MainMenuSettings.addSprite(glyph, `ui/settings/${icon}/spriteFrame`, 43, 43);
+        glyph.setPosition(-MainMenuSettings.px(97), 0, 0);
+        glyph.addComponent(UITransform);
+        MainMenuSettings.addSprite(
+            glyph,
+            `ui/settings/home/${icon}/spriteFrame`,
+            MainMenuSettings.px(19),
+            MainMenuSettings.px(18)
+        );
 
         const title = MainMenuSettings.addLabel(
-            row, '', 260, 44, 24, new Color(46, 130, 220, 255), Label.HorizontalAlign.LEFT
+            row, '', MainMenuSettings.px(140), height, 24, ROW_TEXT, Label.HorizontalAlign.CENTER
         );
         title.node.name = 'Title';
-        title.node.setPosition(-40, 0, 0);
+        title.node.setPosition(0, 0, 0);
 
         const mark = new Node('Arrow');
         mark.layer = Layers.Enum.UI_2D;
         mark.parent = row;
-        mark.setPosition(198, 0, 0);
-        mark.addComponent(UITransform).setContentSize(27, 29);
-        MainMenuSettings.addSprite(mark, `ui/settings/${arrow}/spriteFrame`, 27, 29);
-    }
-
-    private static paint(
-        node: Node,
-        width: number,
-        height: number,
-        radius: number,
-        fill: Color,
-        stroke: Color
-    ): void {
-        const graphics = node.addComponent(Graphics);
-        graphics.fillColor = fill;
-        graphics.roundRect(-width / 2, -height / 2, width, height, radius);
-        graphics.fill();
-        graphics.strokeColor = stroke;
-        graphics.lineWidth = 3;
-        graphics.roundRect(-width / 2, -height / 2, width, height, radius);
-        graphics.stroke();
+        mark.setPosition(MainMenuSettings.px(105), 0, 0);
+        mark.addComponent(UITransform);
+        MainMenuSettings.addSprite(
+            mark,
+            'ui/settings/home/icon_arrow/spriteFrame',
+            MainMenuSettings.px(6),
+            MainMenuSettings.px(11)
+        );
     }
 
     private static addLabel(
@@ -459,12 +430,17 @@ export class MainMenuSettings {
         label.fontFamily = 'PingFang SC';
         label.string = text;
         label.fontSize = fontSize;
-        label.lineHeight = fontSize + 8;
+        label.lineHeight = fontSize + 6;
         label.isBold = true;
         label.color = color;
         label.horizontalAlign = align;
         label.verticalAlign = Label.VerticalAlign.CENTER;
         label.overflow = Label.Overflow.SHRINK;
         return label;
+    }
+
+    /** 把设计稿上的 pt 换成 720 宽画布上的像素。 */
+    private static px(designPoint: number): number {
+        return Math.round(designPoint * SCALE);
     }
 }

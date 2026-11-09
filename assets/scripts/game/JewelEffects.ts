@@ -20,7 +20,7 @@ import {
 } from 'cc';
 import { PREVIEW } from 'cc/env';
 
-import { illustratedGemRatio, placeSocketFill } from './GemVisuals';
+import { illustratedGemRatio, placeGemFill, placeSocketFill } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -333,6 +333,7 @@ export class JewelEffects extends Component {
                 gem.sizeMode = Sprite.SizeMode.CUSTOM;
                 gem.spriteFrame = cell.gem;
                 gem.color = Color.WHITE;
+                placeGemFill(gem, gemSize);
             }
         }
 

@@ -12,7 +12,6 @@ import {
     resources,
     Sprite,
     SpriteFrame,
-    UIOpacity,
     UITransform
 } from 'cc';
 
@@ -164,9 +163,8 @@ export class SettingsPanel extends Component {
         if (this.homeTitle) this.homeTitle.string = localize('主页', 'Home');
         if (this.replayTitle) this.replayTitle.string = localize('重玩', 'Replay');
 
-        this.setToggleDim('ToggleMusic', settings.musicEnabled);
-        this.setToggleDim('ToggleVibration', settings.vibrationEnabled);
-        this.setToggleDim('ToggleSound', settings.soundEnabled);
+        this.setToggleIcon('ToggleMusic', settings.musicEnabled);
+        this.setToggleIcon('ToggleSound', settings.soundEnabled);
     }
 
     /**
@@ -236,31 +234,59 @@ export class SettingsPanel extends Component {
         if (titleSprite) titleSprite.trim = false;
         this.pauseTitle = this.addLabel(title, 'Title', 200, 64, 50, BROWN, 0, -5);
 
-        this.addToggle(root, 'ToggleMusic', 'ui/pause/btn_music/spriteFrame', -166, 63, () => this.toggleMusic());
-        this.addToggle(root, 'ToggleVibration', 'ui/pause/btn_vibration/spriteFrame', 0, 63, () => this.toggleVibration());
-        this.addToggle(root, 'ToggleSound', 'ui/pause/btn_sound/spriteFrame', 166, 63, () => this.toggleSound());
+        this.addToggle(root, 'ToggleMusic', 'ui/pause/btn_music/spriteFrame', -83, 63, () => this.toggleMusic());
+        this.addToggle(root, 'ToggleSound', 'ui/pause/btn_sound/spriteFrame', 83, 63, () => this.toggleSound());
 
-        this.addSaveRow(root);
         this.homeTitle = this.addAction(
-            root, 'HomeButton', 'ui/pause/btn_home/spriteFrame', -138, -186, BROWN, () => this.onHome?.()
+            root, 'HomeButton', 'ui/pause/btn_home/spriteFrame', -138, -88, BROWN, () => this.onHome?.()
         );
         this.replayTitle = this.addAction(
-            root, 'ReplayButton', 'ui/pause/btn_replay/spriteFrame', 138, -186, Color.WHITE, () => this.onReplay?.()
+            root, 'ReplayButton', 'ui/pause/btn_replay/spriteFrame', 138, -88, Color.WHITE, () => this.onReplay?.()
         );
 
         this.addClose(root);
     }
 
     /**
-     * 关闭时把图标压暗，打开时恢复。
+     * 打开用没有斜杠的图标，关闭换成带斜杠的。两个弹窗同一套图。
      * @param name 开关节点名
      * @param enabled 是否打开
      */
-    private setToggleDim(name: string, enabled: boolean) {
-        const opacity = this.node.getChildByName('PauseRoot')
+    private setToggleIcon(name: 'ToggleMusic' | 'ToggleSound', enabled: boolean): void {
+        const sprite = this.node.getChildByName('PauseRoot')
             ?.getChildByName(name)
-            ?.getComponent(UIOpacity);
-        if (opacity) opacity.opacity = enabled ? 255 : 110;
+            ?.getComponent(Sprite);
+        if (!sprite) return;
+        const path = this.toggleFrame(name, enabled);
+        resources.load(path, SpriteFrame, (error, frame) => {
+            if (error || !frame || !sprite.isValid) {
+                if (error) console.error(`[Settings] 加载 ${path} 失败`, error);
+                return;
+            }
+            sprite.spriteFrame = frame;
+        });
+    }
+
+    /**
+     * 音乐、音效的开和关对应哪张图。
+     * @param name 开关节点名
+     * @param enabled 是否打开
+     */
+    private toggleFrame(name: 'ToggleMusic' | 'ToggleSound', enabled: boolean): string {
+        switch (name) {
+            case 'ToggleMusic':
+                return enabled
+                    ? 'ui/pause/btn_music/spriteFrame'
+                    : 'ui/settings/home/icon_music_off/spriteFrame';
+            case 'ToggleSound':
+                return enabled
+                    ? 'ui/pause/btn_sound/spriteFrame'
+                    : 'ui/settings/home/icon_sound_off/spriteFrame';
+            default: {
+                const unexpected: never = name;
+                return unexpected;
+            }
+        }
     }
 
     /**
@@ -302,41 +328,10 @@ export class SettingsPanel extends Component {
 
     private addToggle(parent: Node, name: string, path: string, x: number, y: number, onClick: () => void) {
         const node = this.addSprite(parent, name, path, x, y, 119, 111);
-        node.addComponent(UIOpacity);
         const button = node.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.05;
         node.on(Button.EventType.CLICK, onClick, this);
-    }
-
-    private addSaveRow(parent: Node) {
-        const width = 490;
-        const height = 61;
-        const node = new Node('SaveRow');
-        node.layer = Layers.Enum.UI_2D;
-        node.parent = parent;
-        node.setPosition(0, -60, 0);
-        node.addComponent(UITransform).setContentSize(width, height);
-
-        const graphics = node.addComponent(Graphics);
-        graphics.fillColor = new Color(250, 243, 234, 255);
-        graphics.strokeColor = new Color(233, 207, 177, 255);
-        graphics.lineWidth = 2;
-        graphics.roundRect(-width / 2 + 1, -height / 2 + 1, width - 2, height - 2, 34);
-        graphics.fill();
-        graphics.stroke();
-
-        const button = node.addComponent(Button);
-        button.transition = Button.Transition.SCALE;
-        button.zoomScale = 1.03;
-        node.on(Button.EventType.CLICK, () => {
-            this.onSave?.();
-            this.audioManager?.playClick();
-        }, this);
-
-        this.addSprite(node, 'SaveIcon', 'ui/pause/icon_save/spriteFrame', -168, 0, 35, 35);
-        this.saveTitle = this.addLabel(node, 'Title', 260, 44, 31, BROWN, 8, 0);
-        this.addSprite(node, 'Chevron', 'ui/pause/icon_chevron/spriteFrame', 200, 0, 12, 21);
     }
 
     private addAction(

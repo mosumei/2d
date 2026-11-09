@@ -4,6 +4,7 @@ import {
     Sprite,
     SpriteFrame,
     Color,
+    Graphics,
     Node,
     UITransform,
     Tween,
@@ -16,7 +17,7 @@ import { drawBead, drawSocket, gemDrawSize, placeSocketFill, usesIllustratedGem 
 
 const { ccclass, property } = _decorator;
 
-// 关卡格子用单字母。灰色没有切图，仍画矢量珠。
+// 关卡格子用单字母。灰色用 gem_gray。
 export type GemColor =
     | 'yellow'
     | 'blue'
@@ -90,6 +91,9 @@ export class GemCell extends Component {
 
     public row = 0;
     public col = 0;
+    /** 井字格只补没有邻格的外边。上边和左边由这一格画，避免和邻格各画一根。 */
+    private drawRightEdge = false;
+    private drawBottomEdge = false;
 
     public targetColor: GemColor | null = null;
     public currentColor: GemColor | null = null;
@@ -279,13 +283,62 @@ export class GemCell extends Component {
             }
         }
 
+        this.drawCellEdge(size);
+
         const gemNode = this.gemSprite?.node;
+        // 八边形插槽是实心色板，棋子必须画在它上面。
+        if (gemNode?.isValid && gemNode.parent) {
+            gemNode.setSiblingIndex(gemNode.parent.children.length - 1);
+        }
         const resting = !this.picked || this.currentColor === null;
         if (gemNode?.isValid && resting) {
             Tween.stopAllByTarget(gemNode);
             gemNode.setPosition(0, 0, 0);
             gemNode.setScale(1, 1, 1);
         }
+    }
+
+    /** 井字格：上边、左边每格都画。右边和底边只在外侧补一次。 */
+    private drawCellEdge(size: number) {
+        let edge = this.node.getChildByName('CellEdge');
+        if (!edge) {
+            edge = new Node('CellEdge');
+            edge.layer = this.node.layer;
+            edge.parent = this.node;
+            const transform = edge.addComponent(UITransform);
+            transform.hitTest = () => false;
+            edge.addComponent(Graphics);
+        }
+        const gem = this.gemSprite?.node;
+        if (gem?.isValid) edge.setSiblingIndex(gem.getSiblingIndex());
+        edge.getComponent(UITransform)?.setContentSize(size, size);
+        const graphics = edge.getComponent(Graphics);
+        if (!graphics) return;
+        graphics.clear();
+        graphics.lineWidth = 1;
+        graphics.strokeColor = new Color(255, 255, 255, 78);
+        const half = size / 2;
+        this.strokeSegment(graphics, -half, half, half, half);
+        this.strokeSegment(graphics, -half, half, -half, -half);
+        if (this.drawRightEdge) this.strokeSegment(graphics, half, half, half, -half);
+        if (this.drawBottomEdge) this.strokeSegment(graphics, -half, -half, half, -half);
+    }
+
+    /**
+     * 标出这一格要不要画右边和底边。有邻格的那一侧留给邻格的上边或左边。
+     * @param drawRight 右侧没有格子时为 true
+     * @param drawBottom 下侧没有格子时为 true
+     */
+    public setGridEdges(drawRight: boolean, drawBottom: boolean) {
+        this.drawRightEdge = drawRight;
+        this.drawBottomEdge = drawBottom;
+        if (this.displaySize > 0) this.refreshView();
+    }
+
+    private strokeSegment(graphics: Graphics, x1: number, y1: number, x2: number, y2: number) {
+        graphics.moveTo(x1, y1);
+        graphics.lineTo(x2, y2);
+        graphics.stroke();
     }
 
     public setSelected(selected: boolean) {

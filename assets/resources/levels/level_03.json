@@ -4,7 +4,7 @@
   "gridType": "square",
   "rows": 27,
   "cols": 20,
-  "trayCapacity": 12,
+  "trayCapacity": 48,
   "target": [
     "....................",
     "....................",

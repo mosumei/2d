@@ -1,8 +1,7 @@
 import { Color, Graphics, Layers, Node, Sprite, UITransform } from 'cc';
 import type { GemColor } from './GemCell';
-import { currentGemStyle } from './TileSprites';
 
-// 珍珠模式的灰色没有切图，仍画矢量珠。其余颜色用 gems/ 里的珠子。
+// 灰色有 gem_gray。其余颜色用 gems/octagon/ 里最接近的珠子。
 export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
     yellow: [230, 190, 40], blue: [40, 80, 200], red: [210, 40, 40],
     black: [40, 48, 46], white: [236, 236, 236], pink: [180, 40, 110],
@@ -20,30 +19,24 @@ export function configureGemPalette(palette?: GemPalette): void {
 }
 
 const ILLUSTRATED: ReadonlySet<GemColor> = new Set([
-    'yellow', 'blue', 'red', 'black', 'white', 'pink', 'green',
+    'yellow', 'blue', 'red', 'black', 'white', 'pink', 'green', 'gray',
     'darkRed', 'orange', 'brown', 'olive', 'teal', 'navy', 'purple'
 ]);
 
-/** 有切图的颜色用图片。灰色只在四边形、八边形时用 gem_gray，珍珠模式仍画矢量珠。 */
+/** 这些颜色用八边形切图。 */
 export function usesIllustratedGem(color: GemColor): boolean {
-    if (ILLUSTRATED.has(color)) return true;
-    return color === 'gray' && currentGemStyle() !== 'pearl';
+    return ILLUSTRATED.has(color);
 }
 
-/** 珍珠相对格子的边长。60 的格子上珠子是 51。 */
+/** 珠子相对插槽的边长。插槽为 1 时珠子是 0.85。 */
 export const ILLUSTRATED_GEM_RATIO = 0.85;
 
-/**
- * 四边形、八边形珠图四周留有透明边，画到格子边长才能填满孔的内部。
- */
-export const SHAPED_GEM_RATIO = 1;
-
-/** 灰色矢量珠相对格子的边长。 */
+/** 没有切图时，矢量珠相对格子的边长。 */
 export const VECTOR_GEM_RATIO = 0.72;
 
-/** 当前样式下，插图珠相对格子或托盘孔的边长比例。 */
+/** 插图珠相对格子或托盘孔的边长比例。 */
 export function illustratedGemRatio(): number {
-    return currentGemStyle() === 'pearl' ? ILLUSTRATED_GEM_RATIO : SHAPED_GEM_RATIO;
+    return ILLUSTRATED_GEM_RATIO;
 }
 
 /**
@@ -94,6 +87,7 @@ export function drawBead(node: Node, size: number, color: GemColor): void {
     const drawn = node.getChildByName('BeadVisual');
     if (usesIllustratedGem(color) && sprite?.spriteFrame) {
         sprite.enabled = true;
+        placeGemFill(sprite, size);
         if (drawn) drawn.active = false;
         return;
     }
@@ -115,33 +109,50 @@ export function drawBead(node: Node, size: number, color: GemColor): void {
 const SOCKET_TILE = 180;
 
 /**
- * 把插槽切图里的色块铺满格子，并多伸出 1 像素压住接缝。
- * @param sprite 插槽精灵
- * @param size 格子边长
+ * 按切图矩形把精灵铺进给定边长。插槽和棋子共用这一套。
+ * @param sprite 精灵
+ * @param size 目标边长
+ * @param bleed 四周多伸出的像素
+ * @param tileCap 切图里算作满铺的一边
  */
-export function placeSocketFill(sprite: Sprite, size: number): void {
+function placeFrame(sprite: Sprite, size: number, bleed: number, tileCap: number): void {
     const frame = sprite.spriteFrame;
     const ui = sprite.getComponent(UITransform);
     if (!frame || !ui) return;
     sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.type = Sprite.Type.SIMPLE;
     sprite.trim = true;
     const width = frame.rect.width;
     const height = frame.rect.height;
-    if (width < 1 || height < 1) {
+    if (width < 1 || height < 1 || tileCap < 1) {
         ui.setContentSize(size, size);
         sprite.node.setPosition(0, 0, 0);
         return;
     }
-    const tile = Math.min(width, SOCKET_TILE);
+    const tile = Math.min(width, tileCap);
     const insetX = (width - tile) / 2;
-    const insetTop = width > SOCKET_TILE ? (width - SOCKET_TILE) / 2 : 0;
-    const cover = size + 1;
+    const insetTop = width > tileCap ? (width - tileCap) / 2 : 0;
+    const cover = size + bleed;
     const nodeW = cover * (width / tile);
     const nodeH = cover * (height / tile);
     ui.setContentSize(nodeW, nodeH);
     const dx = (width / 2 - (insetX + tile / 2)) / width * nodeW;
     const dy = ((insetTop + tile / 2) - height / 2) / height * nodeH;
     sprite.node.setPosition(dx, dy, 0);
+}
+
+/** 把原来的珠子切图铺进给定边长。 */
+export function placeGemFill(sprite: Sprite, size: number): void {
+    placeFrame(sprite, size, 0, sprite.spriteFrame?.rect.width ?? size);
+}
+
+/**
+ * 把插槽切图里的色块铺满格子，并多伸出 1 像素压住接缝。
+ * @param sprite 插槽精灵
+ * @param size 格子边长
+ */
+export function placeSocketFill(sprite: Sprite, size: number): void {
+    placeFrame(sprite, size, 1, SOCKET_TILE);
 }
 
 export function drawSocket(node: Node, size: number, color: GemColor): void {

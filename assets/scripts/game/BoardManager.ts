@@ -68,10 +68,8 @@ export class BoardManager extends Component {
     @property(JsonAsset)
     levelData: JsonAsset | null = null;
 
-    private parseColor(char: string): GemColor {
-        const color = GEM_COLOR_LETTERS[char];
-        if (!color) throw new Error(`未知颜色 ${char}`);
-        return color;
+    private parseColor(char: string): GemColor | null {
+        return GEM_COLOR_LETTERS[char] ?? null;
     }
 
     private getGemFrames(): GemFrames {
@@ -136,14 +134,23 @@ export class BoardManager extends Component {
         };
 
         for (let row = 0; row < rows; row++) {
+            const rawLine = this.pattern[row];
+            if (typeof rawLine !== 'string') {
+                console.error('[Board] 行不是字符串', row, rawLine);
+                continue;
+            }
+            const initialLine = this.initialPattern?.[row];
             for (let col = 0; col < cols; col++) {
-                const type = this.pattern[row][col];
-                if (type === '.') continue;
+                const type = rawLine.charAt(col);
+                if (type === '.' || type === '') continue;
 
                 const target = this.parseColor(type);
-                const initialChar =
-                    this.initialPattern?.[row]?.[col] ?? type;
-                const initialColor = this.parseColor(initialChar);
+                if (!target) {
+                    console.error('[Board] 未知颜色', type, '行', row, rawLine);
+                    continue;
+                }
+                const initialChar = typeof initialLine === 'string' ? initialLine.charAt(col) : type;
+                const initialColor = initialChar === '.' ? null : this.parseColor(initialChar);
 
                 const node = instantiate(this.gemCellPrefab);
                 node.name = `Gem_${row}_${col}`;
@@ -178,6 +185,14 @@ export class BoardManager extends Component {
 
                 this.cells.push(cell);
             }
+        }
+
+        const filled = new Set(this.cells.map(cell => `${cell.row},${cell.col}`));
+        for (const cell of this.cells) {
+            cell.setGridEdges(
+                !filled.has(`${cell.row},${cell.col + 1}`),
+                !filled.has(`${cell.row + 1},${cell.col}`)
+            );
         }
 
         for (const swap of initialSwaps) {

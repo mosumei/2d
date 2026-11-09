@@ -757,6 +757,7 @@ public resetTray(capacity: number): Promise<void> {
             if (transform) transform.hitTest = () => false;
         }
         well.setSiblingIndex(0);
+        slot.getChildByName('GemImage')?.setSiblingIndex(slot.children.length - 1);
         well.getComponent(UITransform)?.setContentSize(this.wellSize, this.wellSize);
         const sprite = well.getComponent(Sprite);
         if (sprite && this.wellFrame) sprite.spriteFrame = this.wellFrame;
