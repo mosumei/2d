@@ -6,8 +6,8 @@ import {
 } from 'cc';
 
 import type { GemColor } from './GemCell';
-import { loadTileSet, TileFrames } from './TileSprites';
-import { drawBead, ILLUSTRATED_GEM_RATIO } from './GemVisuals';
+import { loadTileSet, trayWellPaths, TileFrames } from './TileSprites';
+import { drawBead, illustratedGemRatio } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -88,9 +88,10 @@ public resetTray(capacity: number): Promise<void> {
 }
 
     private loadWell(): Promise<void> {
+        const wells = trayWellPaths();
         return Promise.all([
-            this.loadWellFrame('ui/game/socket_well/spriteFrame', frame => { this.wellFrame = frame; }),
-            this.loadWellFrame('ui/game/socket_well_faint/spriteFrame', frame => { this.faintWellFrame = frame; })
+            this.loadWellFrame(wells.well, frame => { this.wellFrame = frame; }),
+            this.loadWellFrame(wells.faint, frame => { this.faintWellFrame = frame; })
         ]).then(() => undefined);
     }
 
@@ -718,7 +719,7 @@ public resetTray(capacity: number): Promise<void> {
         const rows = Math.ceil(count / columns);
         this.slotSize = Math.min(46, Math.floor((this.barWidth - 40) / columns));
         this.wellSize = Math.round(this.slotSize * 0.9);
-        this.gemSize = Math.round(this.wellSize * ILLUSTRATED_GEM_RATIO);
+        this.gemSize = Math.round(this.wellSize * illustratedGemRatio());
         const step = this.slotSize;
 
         for (let i = 0; i < this.capacity; i++) {

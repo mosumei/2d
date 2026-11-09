@@ -2019,6 +2019,23 @@ onLoad() {
                     this.flashedRegions = new Set(this.targetRegions.filter(region => region.every(cell => cell.isCorrect())));
                     this.grantedColors = new Set(this.colorsFullyPlaced());
                     this.regionShines = [];
+                    // 独立完成扫光验收入口：真实棋盘、真实动画，不写入通关进度。
+                    if (PREVIEW && typeof location !== 'undefined' &&
+                        new URLSearchParams(location.search).has('preview-completion')) {
+                        for (const cell of this.boardManager!.getCells()) {
+                            if (cell.targetColor !== null) cell.setCurrentColor(cell.targetColor);
+                        }
+                        const token = this.finishToken;
+                        const demonstrate = () => {
+                            if (!this.isValid || token !== this.finishToken) return;
+                            void new GemCompletionShine().play(this.boardManager!, this.node.parent,
+                                () => !this.isValid || token !== this.finishToken);
+                        };
+                        this.scheduleOnce(() => {
+                            demonstrate();
+                            this.schedule(demonstrate, 4);
+                        }, 0.5);
+                    }
                     // 仅在明确指定的编辑器预览中演示实际棋盘上的反光。
                     if (PREVIEW && typeof location !== 'undefined' &&
                         new URLSearchParams(location.search).has('preview-shine')) {

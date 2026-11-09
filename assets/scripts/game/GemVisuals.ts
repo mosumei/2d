@@ -1,7 +1,8 @@
 import { Color, Graphics, Layers, Node, Sprite, UITransform } from 'cc';
 import type { GemColor } from './GemCell';
+import { currentGemStyle } from './TileSprites';
 
-// 灰色没有切图，仍画矢量珠。其余颜色用 gems/ 里的珠子。
+// 珍珠模式的灰色没有切图，仍画矢量珠。其余颜色用 gems/ 里的珠子。
 export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
     yellow: [230, 190, 40], blue: [40, 80, 200], red: [210, 40, 40],
     black: [40, 48, 46], white: [236, 236, 236], pink: [180, 40, 110],
@@ -23,16 +24,27 @@ const ILLUSTRATED: ReadonlySet<GemColor> = new Set([
     'darkRed', 'orange', 'brown', 'olive', 'teal', 'navy', 'purple'
 ]);
 
-/** True when this color should show the imported sphere instead of a vector bead. */
+/** 有切图的颜色用图片。灰色只在四边形、八边形时用 gem_gray，珍珠模式仍画矢量珠。 */
 export function usesIllustratedGem(color: GemColor): boolean {
-    return ILLUSTRATED.has(color);
+    if (ILLUSTRATED.has(color)) return true;
+    return color === 'gray' && currentGemStyle() !== 'pearl';
 }
 
-/** 插图珠相对插槽的边长。60 的格子上珠子是 51。 */
+/** 珍珠相对格子的边长。60 的格子上珠子是 51。 */
 export const ILLUSTRATED_GEM_RATIO = 0.85;
+
+/**
+ * 四边形、八边形珠图四周留有透明边，画到格子边长才能填满孔的内部。
+ */
+export const SHAPED_GEM_RATIO = 1;
 
 /** 灰色矢量珠相对格子的边长。 */
 export const VECTOR_GEM_RATIO = 0.72;
+
+/** 当前样式下，插图珠相对格子或托盘孔的边长比例。 */
+export function illustratedGemRatio(): number {
+    return currentGemStyle() === 'pearl' ? ILLUSTRATED_GEM_RATIO : SHAPED_GEM_RATIO;
+}
 
 /**
  * 珠子画在插槽上的边长。
@@ -40,7 +52,7 @@ export const VECTOR_GEM_RATIO = 0.72;
  * @param slotSize 插槽边长
  */
 export function gemDrawSize(color: GemColor, slotSize: number): number {
-    return slotSize * (usesIllustratedGem(color) ? ILLUSTRATED_GEM_RATIO : VECTOR_GEM_RATIO);
+    return slotSize * (usesIllustratedGem(color) ? illustratedGemRatio() : VECTOR_GEM_RATIO);
 }
 
 const beadColors = new WeakMap<Node, GemColor>();

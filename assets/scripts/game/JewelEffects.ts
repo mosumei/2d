@@ -20,7 +20,7 @@ import {
 } from 'cc';
 import { PREVIEW } from 'cc/env';
 
-import { ILLUSTRATED_GEM_RATIO, placeSocketFill } from './GemVisuals';
+import { illustratedGemRatio, placeSocketFill } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -327,7 +327,8 @@ export class JewelEffects extends Component {
                 const gemNode = new Node('Gem');
                 gemNode.layer = Layers.Enum.UI_2D;
                 gemNode.parent = tile;
-                gemNode.addComponent(UITransform).setContentSize(cell.size * ILLUSTRATED_GEM_RATIO, cell.size * ILLUSTRATED_GEM_RATIO);
+                const gemSize = cell.size * illustratedGemRatio();
+                gemNode.addComponent(UITransform).setContentSize(gemSize, gemSize);
                 const gem = gemNode.addComponent(Sprite);
                 gem.sizeMode = Sprite.SizeMode.CUSTOM;
                 gem.spriteFrame = cell.gem;

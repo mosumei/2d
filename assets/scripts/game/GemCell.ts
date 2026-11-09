@@ -12,7 +12,7 @@ import {
 } from 'cc';
 
 import { BoardGesture } from './BoardGesture';
-import { drawBead, drawSocket, ILLUSTRATED_GEM_RATIO, placeSocketFill, usesIllustratedGem, VECTOR_GEM_RATIO } from './GemVisuals';
+import { drawBead, drawSocket, gemDrawSize, placeSocketFill, usesIllustratedGem } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
 
@@ -244,9 +244,7 @@ export class GemCell extends Component {
 
                 this.gemSprite.color = Color.WHITE;
 
-                const gemSize = usesIllustratedGem(current) && this.frames[current]
-                    ? size * ILLUSTRATED_GEM_RATIO
-                    : size * VECTOR_GEM_RATIO;
+                const gemSize = gemDrawSize(current, size);
                 this.gemSprite
                     .getComponent(UITransform)
                     ?.setContentSize(gemSize, gemSize);

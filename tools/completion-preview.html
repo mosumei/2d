@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>完成扫光 · 实机验收</title>
+<style>body{margin:0;background:#252833;color:#eee;font:15px system-ui;display:flex;gap:28px;justify-content:center;padding:20px}aside{width:220px;line-height:1.8}button{display:block;padding:10px 16px;margin:12px 0;background:#42495e;color:white;border:0;border-radius:8px;cursor:pointer}#phone{width:360px;height:640px;overflow:hidden;background:white}iframe{width:720px;height:1280px;transform:scale(.5);transform-origin:0 0;border:0}</style>
+<aside><b>完成作品 · 扫光验收</b><p>这里运行实际 Cocos 游戏和完成扫光，每 4 秒重播一次。只用于编辑器预览，不写入通关存档。</p><button onclick="load(1)">第 1 关</button><button onclick="load(2)">第 2 关</button><button onclick="load(3)">第 3 关</button></aside>
+<div id="phone"><iframe id="game" title="实际 Cocos 完成扫光" src="http://localhost:7456/?preview-level=2&preview-completion=1"></iframe></div>
+<script>function load(level){document.getElementById('game').src='http://localhost:7456/?preview-level='+level+'&preview-completion=1'}</script></html>

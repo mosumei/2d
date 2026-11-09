@@ -4,6 +4,7 @@ import {
     Layers,
     Node,
     Rect,
+    Size,
     resources,
     Sprite,
     SpriteFrame,
@@ -18,9 +19,14 @@ import {
 import { BoardManager } from './BoardManager';
 import { GemCell } from './GemCell';
 
-const WAVE_SPAN = 1.8;
-const GLINT_FRAMES = 16;
-const GLINT_BEAD_SCALE = 1.4;
+// 整图节奏与珠子数量无关：短暂停留 → 斜向推进 → 最后一批余光退去。
+const WAVE_LEAD = 0.32;
+const WAVE_SPAN = 1.50;
+const GLINT_DURATION = 0.80;
+const GLINT_FRAMES = 28;
+const GLINT_TILE_SIZE = 32;
+const GLINT_COLUMNS = 8;
+const GLINT_BEAD_SIZE = 26;
 
 /**
  * 拼图完成后的闪耀。只在棋子上加临时高光，不改棋盘颜色。
@@ -42,11 +48,9 @@ export class GemCompletionShine {
         cancelled: () => boolean
     ): Promise<void> {
         const cells = board.getCells().filter(cell => cell.isValid && cell.currentColor !== null);
-        const framesReady = this.loadGlintFrames();
         try {
             if (cells.length === 0 || cancelled()) return;
-            await this.wait(0.12, cancelled);
-            await framesReady;
+            await Promise.all([this.wait(WAVE_LEAD, cancelled), this.loadGlintFrames()]);
             if (cancelled()) return;
             await this.playWaveShine(cells, cancelled);
         } finally {
@@ -165,61 +169,94 @@ export class GemCompletionShine {
         }
     }
 
-    /** 每颗珠子表面闪一下白星，从左上斜着扫到右下。 */
+    /** 同一斜线同时起亮，较长的亮面与余光覆盖多条相邻斜线，铺成宽扫光。 */
     private async playWaveShine(cells: GemCell[], cancelled: () => boolean): Promise<void> {
         if (this.glintFrames.length === 0 || cancelled()) return;
         const orders = cells.map(cell => cell.row + cell.col);
         const min = Math.min(...orders);
-        const span = Math.max(0.01, Math.max(...orders) - min);
-        await Promise.all(cells.map((cell, index) => {
-            const delay = ((orders[index] - min) / span) * WAVE_SPAN;
-            return this.wait(delay, cancelled).then(() => this.glint(cell, cancelled));
+        const span = Math.max(1, Math.max(...orders) - min);
+        const beads = cells.map((cell, index) => ({
+            cell,
+            delay: ((orders[index] - min) / span) * WAVE_SPAN,
+            node: null as Node | null,
+            sprite: null as Sprite | null,
+            frame: -1,
+            finished: false
         }));
-    }
-
-    private async glint(cell: GemCell, cancelled: () => boolean): Promise<void> {
-        const frames = this.glintFrames;
-        if (frames.length === 0 || cancelled() || !cell.isValid) return;
-        const gemNode = cell.gemSprite?.node;
-        const host = gemNode?.isValid ? gemNode : cell.node;
-        const gemSize = gemNode?.getComponent(UITransform)?.contentSize.width
-            ?? cell.getDisplaySize() * 0.85;
-        const node = new Node('WaveGlint');
-        node.layer = host.layer;
-        node.parent = host;
-        node.setSiblingIndex(host.children.length - 1);
-        this.nodes.push(node);
-        const size = Math.max(8, gemSize * GLINT_BEAD_SCALE);
-        const transform = node.addComponent(UITransform);
-        transform.setContentSize(size, size);
-        transform.hitTest = () => false;
-        const sprite = node.addComponent(Sprite);
-        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        sprite.trim = false;
-        sprite.color = Color.WHITE;
-        sprite.spriteFrame = frames[0];
-        const frameTime = 0.9 / frames.length;
-        for (const frame of frames) {
-            if (cancelled() || !sprite.isValid) return;
-            sprite.spriteFrame = frame;
-            await this.wait(frameTime, cancelled);
+        const clock = { time: 0 };
+        const update = () => {
+            if (cancelled()) {
+                this.clearNodes();
+                return;
+            }
+            for (const bead of beads) {
+                if (bead.finished) continue;
+                const elapsed = clock.time - bead.delay;
+                if (elapsed < 0) continue;
+                if (!bead.cell.isValid || clock.time >= bead.delay + GLINT_DURATION) {
+                    if (bead.node?.isValid) bead.node.destroy();
+                    bead.finished = true;
+                    continue;
+                }
+                if (!bead.node) {
+                    const gem = bead.cell.gemSprite?.node;
+                    const host = gem?.isValid ? gem : bead.cell.node;
+                    const gemSize = gem?.getComponent(UITransform)?.width ?? bead.cell.getDisplaySize() * 0.85;
+                    const node = new Node('WaveGlint');
+                    node.layer = host.layer;
+                    node.parent = host;
+                    node.setSiblingIndex(host.children.length - 1);
+                    this.nodes.push(node);
+                    // 录屏反光每帧有透明留边；补偿留边后，亮面覆盖珠子表面。
+                    const size = gemSize * GLINT_TILE_SIZE / GLINT_BEAD_SIZE;
+                    const transform = node.addComponent(UITransform);
+                    transform.setContentSize(size, size);
+                    transform.hitTest = () => false;
+                    const sprite = node.addComponent(Sprite);
+                    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+                    sprite.trim = true;
+                    sprite.color = Color.WHITE;
+                    bead.node = node;
+                    bead.sprite = sprite;
+                }
+                if (!bead.node.isValid) {
+                    bead.finished = true;
+                    continue;
+                }
+                const index = Math.min(GLINT_FRAMES - 1, Math.floor(elapsed / GLINT_DURATION * GLINT_FRAMES));
+                if (index !== bead.frame) {
+                    bead.sprite!.spriteFrame = this.glintFrames[index];
+                    bead.frame = index;
+                }
+            }
+        };
+        const duration = WAVE_SPAN + GLINT_DURATION;
+        // 全图共用一个时钟，避免为数千颗珠子逐帧创建独立计时器。
+        update();
+        tween(clock).to(duration, { time: duration }, { onUpdate: update }).start();
+        try {
+            await this.wait(duration, cancelled);
+        } finally {
+            Tween.stopAllByTarget(clock);
         }
-        if (node.isValid) node.destroy();
     }
 
     private loadGlintFrames(): Promise<void> {
         if (this.glintFrames.length > 0) return Promise.resolve();
         return new Promise(resolve => {
-            resources.load('effects/wave-glint/texture', Texture2D, (error, texture) => {
+            resources.load('effects/placement-reflection/texture', Texture2D, (error, texture) => {
                 if (error || !texture) {
-                    if (error) console.warn('[GemCompletionShine] 波浪星光素材加载失败', error);
+                    if (error) console.warn('[GemCompletionShine] 完成反光素材加载失败', error);
                     resolve();
                     return;
                 }
                 for (let index = 0; index < GLINT_FRAMES; index++) {
                     const frame = new SpriteFrame();
                     frame.texture = texture;
-                    frame.rect = new Rect((index % 8) * 64, Math.floor(index / 8) * 64, 64, 64);
+                    frame.rect = new Rect((index % GLINT_COLUMNS) * GLINT_TILE_SIZE, Math.floor(index / GLINT_COLUMNS) * GLINT_TILE_SIZE, GLINT_TILE_SIZE, GLINT_TILE_SIZE);
+                    // texture 赋值会将 originalSize 设为整张图集；必须重置为单帧。
+                    frame.originalSize = new Size(GLINT_TILE_SIZE, GLINT_TILE_SIZE);
+                    frame.packable = false;
                     this.glintFrames.push(frame);
                 }
                 resolve();

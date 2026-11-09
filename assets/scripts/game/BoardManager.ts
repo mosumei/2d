@@ -82,8 +82,7 @@ export class BoardManager extends Component {
             red: this.tileFrames.red ?? this.redGem ?? undefined,
             black: this.tileFrames.black ?? this.blackGem ?? undefined,
             pink: this.tileFrames.pink ?? this.pinkGem ?? undefined,
-            white: this.tileFrames.white ?? this.whiteGem ?? undefined,
-            gray: undefined
+            white: this.tileFrames.white ?? this.whiteGem ?? undefined
         };
     }
 
