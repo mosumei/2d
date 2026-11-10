@@ -6,7 +6,7 @@ import {
 } from 'cc';
 
 import type { GemColor } from './GemCell';
-import { loadTileSet, trayWellPaths, TileFrames } from './TileSprites';
+import { loadTileSet, TileFrames } from './TileSprites';
 import { drawBead, illustratedGemRatio } from './GemVisuals';
 
 const { ccclass, property } = _decorator;
@@ -63,7 +63,10 @@ public getFirstEmptySlot(): number {
     private liftedSlots: number[] = [];
     private tileFrames: TileFrames = {};
     private wellFrame: SpriteFrame | null = null;
-    private faintWellFrame: SpriteFrame | null = null;
+    private slotFrame: SpriteFrame | null = null;
+    private slotSelectedFrame: SpriteFrame | null = null;
+    private addButtonFrame: SpriteFrame | null = null;
+    private addIconFrame: SpriteFrame | null = null;
 
     private slotSize = 60;
     private wellSize = 54;
@@ -74,24 +77,30 @@ public getFirstEmptySlot(): number {
     private readonly barWidth = 560;
     /** 槽的上下各留一截，单行时底板不会太厚。 */
     private readonly barPadY = 14;
-    /** 底边青绿按钮的高度。一半压在托盘上，一半探出去。 */
-    private readonly addPillHeight = 46;
+    /** 底边青绿按钮。切图是 372×120，按 720 画布缩成 238×77。 */
+    private readonly addPillWidth = 238;
+    private readonly addPillHeight = 77;
+    /** 点一次加的孔数，和按钮上的数字一致。 */
+    private readonly slotsPerGrant = 3;
     /** 一行 12 个孔，托盘最多六行。 */
     private readonly maxSlots = 72;
 
 public resetTray(capacity: number): Promise<void> {
     this.capacity = capacity;
-    return Promise.all([loadTileSet(), this.loadWell()]).then(([set]) => {
+    return Promise.all([loadTileSet(), this.loadTrayArt()]).then(([set]) => {
         this.tileFrames = set.tiles;
         this.createSlots();
     });
 }
 
-    private loadWell(): Promise<void> {
-        const wells = trayWellPaths();
+    /** 托盘孔、选中孔、加孔按钮和播放图标。 */
+    private loadTrayArt(): Promise<void> {
         return Promise.all([
-            this.loadWellFrame(wells.well, frame => { this.wellFrame = frame; }),
-            this.loadWellFrame(wells.faint, frame => { this.faintWellFrame = frame; })
+            this.loadWellFrame('ui/tray/slot_hole/spriteFrame', frame => { this.wellFrame = frame; }),
+            this.loadWellFrame('ui/tray/slot/spriteFrame', frame => { this.slotFrame = frame; }),
+            this.loadWellFrame('ui/tray/slot_selected/spriteFrame', frame => { this.slotSelectedFrame = frame; }),
+            this.loadWellFrame('ui/tray/btn_add/spriteFrame', frame => { this.addButtonFrame = frame; }),
+            this.loadWellFrame('ui/tray/icon_add/spriteFrame', frame => { this.addIconFrame = frame; })
         ]).then(() => undefined);
     }
 
@@ -141,7 +150,6 @@ public resetTray(capacity: number): Promise<void> {
             slot.parent = this.node;
             slot.addComponent(UITransform).setContentSize(this.slotSize, this.slotSize);
             slot.setPosition((column - (columns - 1) / 2) * step, y, 0);
-            slot.addComponent(Graphics);
             this.slots.push(slot);
             this.gems.push(null);
             this.capacity += 1;
@@ -394,22 +402,24 @@ public resetTray(capacity: number): Promise<void> {
             pill.layer = Layers.Enum.UI_2D;
             pill.parent = shelf;
             const transform = pill.addComponent(UITransform);
-            transform.setContentSize(180, this.addPillHeight);
-            pill.addComponent(Graphics);
+            transform.setContentSize(this.addPillWidth, this.addPillHeight);
+            const face = pill.addComponent(Sprite);
+            face.sizeMode = Sprite.SizeMode.CUSTOM;
+            face.trim = false;
+            face.spriteFrame = this.addButtonFrame;
             this.paintAddPill(pill);
             const button = pill.addComponent(Button);
             button.transition = Button.Transition.SCALE;
             button.zoomScale = 1.05;
             pill.on(Button.EventType.CLICK, this.onAddPillClick, this);
         }
-        pill.getChildByName('FaintWell')?.setPosition(-56, 0, 0);
-        pill.getChildByName('FaintWell')?.getComponent(UITransform)?.setContentSize(22, 22);
-        pill.getChildByName('PlusLabel')?.setPosition(-16, 0, 0);
-        pill.getChildByName('Divider')?.setPosition(16, 0, 0);
-        const icon = pill.getChildByName('FilmIcon');
+        pill.getChildByName('SlotMark')?.setPosition(-72, 0, 0);
+        pill.getChildByName('PlusLabel')?.setPosition(-22, 0, 0);
+        pill.getChildByName('Divider')?.setPosition(24, 0, 0);
+        const icon = pill.getChildByName('AddIcon');
         if (icon) {
-            icon.setPosition(50, 0, 0);
-            icon.getComponent(UITransform)?.setContentSize(42, 34);
+            icon.setPosition(64, 0, 0);
+            icon.getComponent(UITransform)?.setContentSize(46, 38);
         }
         pill.setPosition(0, -barHeight / 2 - this.addPillHeight / 2 + 12, 0);
         pill.active = this.slots.length < this.maxSlots;
@@ -422,7 +432,7 @@ public resetTray(capacity: number): Promise<void> {
         this.showWatchedTip();
         this.scheduleOnce(() => {
             if (!this.isValid) return;
-            if (this.slots.length < this.maxSlots) this.grantSlots(3);
+            if (this.slots.length < this.maxSlots) this.grantSlots(this.slotsPerGrant);
             this.watchingAd = false;
         }, 0.6);
     }
@@ -468,21 +478,25 @@ public resetTray(capacity: number): Promise<void> {
         }, 1.6);
     }
 
-    /** 虚线框紧跟在最后一个插槽后面，排满就换到下一行最左边。 */
+    /** 还没拿到的浅色孔跟在最后一格后面，外面留着虚线框。 */
     private ensureSlotDash() {
         let dash = this.node.getChildByName('SlotDash');
         if (!dash?.isValid) {
             dash = new Node('SlotDash');
             dash.layer = Layers.Enum.UI_2D;
             dash.parent = this.node;
-            dash.addComponent(UITransform);
+            const transform = dash.addComponent(UITransform);
+            transform.hitTest = () => false;
             dash.addComponent(Graphics);
         }
+        if (!dash.getComponent(Graphics)) dash.addComponent(Graphics);
         const columns = 12;
         const step = this.slotSize;
         const count = this.slots.length;
         if (count === 0 || step <= 0 || count >= this.maxSlots) {
             dash.active = false;
+            const hiddenTail = this.node.getChildByName('SlotTail');
+            if (hiddenTail) hiddenTail.active = false;
             return;
         }
         dash.active = true;
@@ -491,25 +505,64 @@ public resetTray(capacity: number): Promise<void> {
             if (slot.isValid && slot.position.y < lowest) lowest = slot.position.y;
         }
         const column = count % columns;
-        const span = Math.min(3, columns - column);
+        const span = Math.min(this.slotsPerGrant, columns - column);
         const y = column === 0 ? lowest - step : lowest;
         const columnX = (col: number) => (col - (columns - 1) / 2) * step;
         const centerX = (columnX(column) + columnX(column + span - 1)) / 2;
         const width = (span - 1) * step + step * 0.92;
         const height = step * 0.92;
-        const transform = dash.getComponent(UITransform);
-        if (transform) {
-            transform.setContentSize(width, height);
-            transform.hitTest = () => false;
-        }
+        dash.getComponent(UITransform)?.setContentSize(width, height);
         dash.setPosition(centerX, y, 0);
         dash.setSiblingIndex(this.node.children.length - 1);
         const graphics = dash.getComponent(Graphics);
         if (graphics) this.paintDashedRoundRect(graphics, width, height, Math.min(14, height / 2));
         this.paintGhostWells(dash, span, column, columnX, centerX);
+        this.paintTailSlots(y, column + span, columnX);
     }
 
-    /** 虚线框里放即将解锁的浅色插槽，用单独的浅图，并且点不中。 */
+    /** 虚线框右边剩下的位置也铺浅色孔，不画框。 */
+    private paintTailSlots(y: number, startColumn: number, columnX: (col: number) => number) {
+        const columns = 12;
+        let tail = this.node.getChildByName('SlotTail');
+        if (!tail?.isValid) {
+            tail = new Node('SlotTail');
+            tail.layer = Layers.Enum.UI_2D;
+            tail.parent = this.node;
+            const transform = tail.addComponent(UITransform);
+            transform.hitTest = () => false;
+        }
+        const count = Math.max(0, columns - startColumn);
+        if (count === 0) {
+            tail.active = false;
+            return;
+        }
+        tail.active = true;
+        tail.setSiblingIndex(this.node.children.length - 1);
+        for (let index = 0; index < columns; index++) {
+            const name = `TailSlot_${index}`;
+            let ghost = tail.getChildByName(name);
+            if (index >= count) {
+                if (ghost) ghost.active = false;
+                continue;
+            }
+            if (!ghost) {
+                ghost = new Node(name);
+                ghost.layer = Layers.Enum.UI_2D;
+                ghost.parent = tail;
+                const transform = ghost.addComponent(UITransform);
+                transform.hitTest = () => false;
+                this.ensureSlotSprite(ghost, 'Plate');
+            }
+            ghost.active = true;
+            const plate = ghost.getChildByName('Plate');
+            plate?.getComponent(UITransform)?.setContentSize(this.slotSize, this.slotSize);
+            const plateSprite = plate?.getComponent(Sprite);
+            if (plateSprite && this.slotFrame) plateSprite.spriteFrame = this.slotFrame;
+            ghost.setPosition(columnX(startColumn + index), y, 0);
+        }
+    }
+
+    /** 虚线框里是还没拿到的浅色孔，点不中。 */
     private paintGhostWells(
         dash: Node,
         span: number,
@@ -517,36 +570,36 @@ public resetTray(capacity: number): Promise<void> {
         columnX: (col: number) => number,
         centerX: number
     ) {
-        const size = this.wellSize > 0 ? this.wellSize : Math.round(this.slotSize * 0.9);
-        for (let index = 0; index < 3; index++) {
-            const name = `GhostWell_${index}`;
-            let well = dash.getChildByName(name);
+        for (let index = 0; index < this.slotsPerGrant; index++) {
+            const name = `GhostSlot_${index}`;
+            let ghost = dash.getChildByName(name);
             if (index >= span) {
-                if (well) well.active = false;
+                if (ghost) ghost.active = false;
                 continue;
             }
-            if (!well) {
-                well = new Node(name);
-                well.layer = Layers.Enum.UI_2D;
-                well.parent = dash;
-                const transform = well.addComponent(UITransform);
+            if (!ghost) {
+                ghost = new Node(name);
+                ghost.layer = Layers.Enum.UI_2D;
+                ghost.parent = dash;
+                const transform = ghost.addComponent(UITransform);
                 transform.hitTest = () => false;
-                const sprite = well.addComponent(Sprite);
-                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-                sprite.color = Color.WHITE;
+                this.ensureSlotSprite(ghost, 'Plate');
             }
-            well.active = true;
-            well.getComponent(UITransform)?.setContentSize(size, size);
-            const sprite = well.getComponent(Sprite);
-            if (sprite && this.faintWellFrame) sprite.spriteFrame = this.faintWellFrame;
-            well.setPosition(columnX(column + index) - centerX, 0, 0);
+            ghost.active = true;
+            const plate = ghost.getChildByName('Plate');
+            plate?.getComponent(UITransform)?.setContentSize(this.slotSize, this.slotSize);
+            const plateSprite = plate?.getComponent(Sprite);
+            if (plateSprite && this.slotFrame) plateSprite.spriteFrame = this.slotFrame;
+            const well = ghost.getChildByName('Well');
+            if (well) well.active = false;
+            ghost.setPosition(columnX(column + index) - centerX, 0, 0);
         }
     }
 
     private paintDashedRoundRect(graphics: Graphics, width: number, height: number, radius: number) {
         graphics.clear();
         graphics.lineWidth = 2.5;
-        graphics.strokeColor = new Color(196, 132, 78, 230);
+        graphics.strokeColor = new Color(196, 132, 78, 170);
         const points = this.roundedRectLoop(width, height, radius);
         const dash = 7;
         const gap = 5;
@@ -604,46 +657,25 @@ public resetTray(capacity: number): Promise<void> {
     }
 
     private paintAddPill(pill: Node) {
-        const width = 180;
-        const height = this.addPillHeight;
-        const graphics = pill.getComponent(Graphics);
-        if (!graphics) return;
-        const radius = height / 2;
-        const line = 3;
-        graphics.clear();
-        graphics.fillColor = new Color(118, 176, 160, 255);
-        graphics.roundRect(-width / 2, -height / 2, width, height, radius);
-        graphics.fill();
-        graphics.lineWidth = line;
-        graphics.strokeColor = new Color(206, 168, 96, 255);
-        graphics.roundRect(
-            -width / 2 + line / 2,
-            -height / 2 + line / 2,
-            width - line,
-            height - line,
-            radius - line / 2
-        );
-        graphics.stroke();
-
-        const well = new Node('FaintWell');
-        well.layer = Layers.Enum.UI_2D;
-        well.parent = pill;
-        well.setPosition(-56, 0, 0);
-        well.addComponent(UITransform).setContentSize(22, 22);
-        const wellSprite = well.addComponent(Sprite);
-        wellSprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        wellSprite.color = Color.WHITE;
-        if (this.faintWellFrame) wellSprite.spriteFrame = this.faintWellFrame;
+        const mark = new Node('SlotMark');
+        mark.layer = Layers.Enum.UI_2D;
+        mark.parent = pill;
+        mark.setPosition(-72, 0, 0);
+        mark.addComponent(UITransform).setContentSize(28, 28);
+        const markSprite = mark.addComponent(Sprite);
+        markSprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        markSprite.trim = false;
+        markSprite.spriteFrame = this.slotFrame ?? this.wellFrame;
 
         const labelNode = new Node('PlusLabel');
         labelNode.layer = Layers.Enum.UI_2D;
         labelNode.parent = pill;
-        labelNode.setPosition(-16, 0, 0);
-        labelNode.addComponent(UITransform).setContentSize(52, 32);
+        labelNode.setPosition(-22, 0, 0);
+        labelNode.addComponent(UITransform).setContentSize(64, 36);
         const label = labelNode.addComponent(Label);
         label.useSystemFont = true;
         label.fontFamily = 'PingFang SC';
-        label.string = '+3';
+        label.string = `+${this.slotsPerGrant}`;
         label.fontSize = 22;
         label.lineHeight = 26;
         label.isBold = true;
@@ -654,27 +686,22 @@ public resetTray(capacity: number): Promise<void> {
         const divider = new Node('Divider');
         divider.layer = Layers.Enum.UI_2D;
         divider.parent = pill;
-        divider.setPosition(16, 0, 0);
-        divider.addComponent(UITransform).setContentSize(2, 18);
+        divider.setPosition(24, 0, 0);
+        divider.addComponent(UITransform).setContentSize(2, 22);
         const dividerGraphics = divider.addComponent(Graphics);
         dividerGraphics.fillColor = new Color(255, 252, 245, 180);
-        dividerGraphics.roundRect(-1, -9, 2, 18, 1);
+        dividerGraphics.roundRect(-1, -11, 2, 22, 1);
         dividerGraphics.fill();
 
-        const icon = new Node('FilmIcon');
+        const icon = new Node('AddIcon');
         icon.layer = Layers.Enum.UI_2D;
         icon.parent = pill;
-        icon.setPosition(50, 0, 0);
-        icon.addComponent(UITransform).setContentSize(42, 34);
+        icon.setPosition(34, 0, 0);
+        icon.addComponent(UITransform).setContentSize(46, 38);
         const sprite = icon.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        resources.load('ui/game/icon_film/spriteFrame', SpriteFrame, (error, frame) => {
-            if (error || !frame || !icon.isValid) {
-                if (error) console.error('[Tray] 加载 ui/game/icon_film/spriteFrame 失败', error);
-                return;
-            }
-            sprite.spriteFrame = frame;
-        });
+        sprite.trim = false;
+        sprite.spriteFrame = this.addIconFrame;
         for (const child of pill.children) {
             const transform = child.getComponent(UITransform);
             if (transform) transform.hitTest = () => false;
@@ -718,8 +745,8 @@ public resetTray(capacity: number): Promise<void> {
         const columns = Math.min(12, count);
         const rows = Math.ceil(count / columns);
         this.slotSize = Math.min(46, Math.floor((this.barWidth - 40) / columns));
-        this.wellSize = Math.round(this.slotSize * 0.9);
-        this.gemSize = Math.round(this.wellSize * illustratedGemRatio());
+        this.wellSize = this.slotSize;
+        this.gemSize = Math.round(this.slotSize * illustratedGemRatio());
         const step = this.slotSize;
 
         for (let i = 0; i < this.capacity; i++) {
@@ -744,23 +771,30 @@ public resetTray(capacity: number): Promise<void> {
     private drawSlot(index: number) {
         const slot = this.slots[index];
         if (!slot?.isValid) return;
-        let well = slot.getChildByName('Well');
-        if (!well) {
-            well = new Node('Well');
-            well.layer = Layers.Enum.UI_2D;
-            well.parent = slot;
-            well.addComponent(UITransform);
-            const sprite = well.addComponent(Sprite);
-            sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-            sprite.color = Color.WHITE;
-            const transform = well.getComponent(UITransform);
-            if (transform) transform.hitTest = () => false;
-        }
-        well.setSiblingIndex(0);
+        const plate = this.ensureSlotSprite(slot, 'Plate');
+        plate.setSiblingIndex(0);
+        plate.getComponent(UITransform)?.setContentSize(this.slotSize, this.slotSize);
+        const plateSprite = plate.getComponent(Sprite);
+        if (plateSprite && this.slotSelectedFrame) plateSprite.spriteFrame = this.slotSelectedFrame;
+        const well = slot.getChildByName('Well');
+        if (well) well.active = false;
         slot.getChildByName('GemImage')?.setSiblingIndex(slot.children.length - 1);
-        well.getComponent(UITransform)?.setContentSize(this.wellSize, this.wellSize);
-        const sprite = well.getComponent(Sprite);
-        if (sprite && this.wellFrame) sprite.spriteFrame = this.wellFrame;
+    }
+
+    /** 槽位上的底板或孔。点击仍由槽位自己接收。 */
+    private ensureSlotSprite(slot: Node, name: string): Node {
+        let node = slot.getChildByName(name);
+        if (node?.isValid) return node;
+        node = new Node(name);
+        node.layer = Layers.Enum.UI_2D;
+        node.parent = slot;
+        const transform = node.addComponent(UITransform);
+        transform.hitTest = () => false;
+        const sprite = node.addComponent(Sprite);
+        sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+        sprite.trim = false;
+        sprite.color = Color.WHITE;
+        return node;
     }
 
     public getGemSize(): number { return this.gemSize; }

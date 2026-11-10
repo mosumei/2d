@@ -1,3 +1,38 @@
+function expandToFullScreen(info) {
+    if (!info) {
+        return info;
+    }
+    var width = info.screenWidth || info.windowWidth;
+    var height = info.screenHeight || info.windowHeight;
+    if (width && height) {
+        info.windowWidth = width;
+        info.windowHeight = height;
+        info.safeArea = {
+            left: 0,
+            top: 0,
+            right: width,
+            bottom: height,
+            width: width,
+            height: height
+        };
+    }
+    return info;
+}
+if (typeof wx !== 'undefined') {
+    if (wx.getWindowInfo) {
+        var originGetWindowInfo = wx.getWindowInfo.bind(wx);
+        wx.getWindowInfo = function () {
+            return expandToFullScreen(originGetWindowInfo());
+        };
+    }
+    if (wx.getSystemInfoSync) {
+        var originGetSystemInfoSync = wx.getSystemInfoSync.bind(wx);
+        wx.getSystemInfoSync = function () {
+            return expandToFullScreen(originGetSystemInfoSync());
+        };
+    }
+}
+
 function __initApp () {  // init app
 globalThis.__wxRequire = require;  // FIX: require cannot work in separate engine 
 require('./web-adapter');

@@ -8,10 +8,13 @@ import {
     Sprite,
     Color,
     instantiate,
-    director
+    director,
+    UITransform,
+    Widget
 } from 'cc';
 
 import { LevelSession, MAX_LEVEL } from '../core/LevelSession';
+import { fillVisibleCanvas } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
@@ -41,6 +44,13 @@ export class LevelSelectUI extends Component {
 
     onLoad() {
         this.totalLevels = MAX_LEVEL;
+        const background = this.node.parent?.getChildByName('Background');
+        const transform = background?.getComponent(UITransform);
+        if (background && transform) {
+            const widget = background.getComponent(Widget);
+            if (widget) widget.enabled = false;
+            fillVisibleCanvas(transform);
+        }
         this.backButton?.node.on(
             Button.EventType.CLICK,
             this.goBack,

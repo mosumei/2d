@@ -461,6 +461,9 @@
       },
       {
         "__id__": 13
+      },
+      {
+        "__id__": 26
       }
     ],
     "_prefab": null,
@@ -481,7 +484,7 @@
       "__type__": "cc.Vec3",
       "x": 1,
       "y": 1,
-      "z": 5.213
+      "z": 1
     },
     "_mobility": 0,
     "_layer": 33554432,
@@ -797,5 +800,35 @@
   {
     "__type__": "cc.PostSettingsInfo",
     "_toneMappingType": 0
+  },
+  {
+    "__type__": "cc.Widget",
+    "_name": "",
+    "_objFlags": 0,
+    "__editorExtras__": {},
+    "node": {
+      "__id__": 11
+    },
+    "_enabled": false,
+    "__prefab": null,
+    "_alignFlags": 45,
+    "_target": null,
+    "_left": 0,
+    "_right": 0,
+    "_top": 0,
+    "_bottom": 0,
+    "_horizontalCenter": 0,
+    "_verticalCenter": 0,
+    "_isAbsLeft": true,
+    "_isAbsRight": true,
+    "_isAbsTop": true,
+    "_isAbsBottom": true,
+    "_isAbsHorizontalCenter": true,
+    "_isAbsVerticalCenter": true,
+    "_originalWidth": 0,
+    "_originalHeight": 0,
+    "_alignMode": 2,
+    "_lockFlags": 0,
+    "_id": "bgWidgetMenu01"
   }
 ]

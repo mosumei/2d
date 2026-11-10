@@ -3,6 +3,7 @@ import {
     Sprite, SpriteFrame, Label, resources, isValid, Color,
     UITransform, Graphics, Layers, BlockInputEvents
 } from 'cc';
+import { fillVisibleCanvas, paintVisibleRect } from '../core/VisibleCanvas';
 import { StarRating } from './StarRating';
 import { ARTIFACTS } from '../core/ArtifactCollectionManager';
 import { localize } from '../core/Locale';
@@ -199,12 +200,11 @@ export class CompletePanelUI extends Component {
         dim.layer = Layers.Enum.UI_2D;
         dim.parent = this.node;
         dim.setSiblingIndex(0);
-        dim.addComponent(UITransform).setContentSize(720, 1280);
+        const transform = dim.addComponent(UITransform);
         dim.addComponent(BlockInputEvents);
         const graphics = dim.addComponent(Graphics);
         graphics.fillColor = new Color(16, 28, 46, 120);
-        graphics.rect(-360, -640, 720, 1280);
-        graphics.fill();
+        paintVisibleRect(graphics, fillVisibleCanvas(transform));
     }
 
     private fitRewardImage(image: Sprite, frame: SpriteFrame) {

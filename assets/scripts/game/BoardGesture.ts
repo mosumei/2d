@@ -10,6 +10,7 @@ export class BoardGesture extends Component {
     public static swallowTap = false;
     public canInteract: (() => boolean) | null = null;
     public onViewChanged: (() => void) | null = null;
+    public onTap: ((point: Vec2) => boolean) | null = null;
 
     private readonly minScale = 1;
     private readonly maxScale = 5;
@@ -115,6 +116,11 @@ export class BoardGesture extends Component {
     }
 
     private onEnd(event: EventTouch): void {
+        const point = event.getUILocation();
+        const isTap = event.type === Node.EventType.TOUCH_END && this.tracking &&
+            this.touchIds.has(event.getID()) && !BoardGesture.swallowTap &&
+            Vec2.distance(point, this.origin) < this.tapSlop && this.contains(point) &&
+            (!this.canInteract || this.canInteract());
         for (const touch of event.getTouches()) this.touchIds.delete(touch.getID());
         const left = this.readPoints(event);
         this.pinchDistance = 0;
@@ -124,6 +130,11 @@ export class BoardGesture extends Component {
             this.lastPoint.set(left[0]);
         } else if (left.length >= 2) {
             this.beginPinch(left[0], left[1]);
+        }
+        if (isTap && this.onTap?.(point)) {
+            // Capture consumes the assisted placement before the original cell sees it.
+            event.propagationStopped = true;
+            BoardGesture.swallowTap = true;
         }
         // Keep swallowTap through the last touch-end; reset only on a new tap.
     }

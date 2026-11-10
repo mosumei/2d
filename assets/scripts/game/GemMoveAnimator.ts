@@ -18,10 +18,13 @@ import type { GemColor } from './GemCell';
 
 const { ccclass } = _decorator;
 
-const LIFT_TIME = 0.08;
-const FLIGHT_TIME = 0.22;
-/** 放进拼图：一列跟着飞，单颗在空中停留更久，才能看见前后珠。 */
-const PLACE_FLIGHT_TIME = 0.36;
+const LIFT_TIME = 0.04;
+const FLIGHT_TIME = 0.10;
+/** 归位保留依次飞入的节奏，缩短起飞、飞行和落稳时间。 */
+const PLACE_FLIGHT_TIME = 0.22;
+const PLACE_LIFT_TIME = 0.04;
+const PLACE_SQUASH_TIME = 0.035;
+const PLACE_RECOVER_TIME = 0.045;
 const SETTLE_TIME = 0.14;
 
 export interface GemMove {
@@ -151,7 +154,7 @@ export class GemMoveAnimator extends Component {
             }
             const placeControl = sequential ? control : this.placeControl(startPos, endPos);
             motion
-                .to(LIFT_TIME, { scale: lifted }, { easing: 'quadOut' })
+                .to(sequential ? LIFT_TIME : PLACE_LIFT_TIME, { scale: lifted }, { easing: 'quadOut' })
                 .to(flightTime, { scale: landed }, {
                     easing: 'sineInOut',
                     onUpdate: (_target, ratio) => {
@@ -168,8 +171,8 @@ export class GemMoveAnimator extends Component {
                 .call(() => {
                     if (flyer.isValid) flyer.setPosition(endPos);
                 })
-                .to(0.06, { scale: squash }, { easing: 'quadOut' })
-                .to(0.08, { scale: landed }, { easing: 'sineOut' })
+                .to(sequential ? 0.03 : PLACE_SQUASH_TIME, { scale: squash }, { easing: 'quadOut' })
+                .to(sequential ? 0.04 : PLACE_RECOVER_TIME, { scale: landed }, { easing: 'sineOut' })
                 .call(() => {
                     this.scheduleOnce(() => {
                         if (!flyer.isValid) return;

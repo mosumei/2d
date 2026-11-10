@@ -17,6 +17,7 @@ import {
 import { GameSettings } from '../core/GameSettings';
 import { LevelSession } from '../core/LevelSession';
 import { localize } from '../core/Locale';
+import { fillVisibleCanvas, paintVisibleRect, screenEdgeShift } from '../core/VisibleCanvas';
 
 type ToggleKey = 'music' | 'sound';
 type MenuAction = 'feedback' | 'share' | 'privacy';
@@ -28,8 +29,6 @@ const BROWN = new Color(122, 72, 36, 255);
 const ROW_TEXT = new Color(166, 124, 78, 255);
 const ROW_FILL = new Color(250, 243, 234, 255);
 const ROW_STROKE = new Color(233, 207, 177, 255);
-const CLOSE_FILL = new Color(253, 243, 230, 255);
-const CLOSE_STROKE = new Color(220, 186, 146, 255);
 
 /**
  * 主页左上角的设置。弹窗按首页切图排，不改主菜单场景。
@@ -59,7 +58,7 @@ export class MainMenuSettings {
         const node = new Node('MainMenuSettingsEntry');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(-278, 559, 0);
+        node.setPosition(-278, 559 + screenEdgeShift(), 0);
         node.addComponent(UITransform).setContentSize(77, 77);
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
@@ -86,18 +85,17 @@ export class MainMenuSettings {
         const dim = new Node('Dim');
         dim.layer = Layers.Enum.UI_2D;
         dim.parent = panel;
-        dim.addComponent(UITransform).setContentSize(900, 1700);
+        const dimTransform = dim.addComponent(UITransform);
         dim.addComponent(BlockInputEvents);
         const dimGraphics = dim.addComponent(Graphics);
         dimGraphics.fillColor = new Color(20, 24, 32, 150);
-        dimGraphics.rect(-450, -850, 900, 1700);
-        dimGraphics.fill();
+        paintVisibleRect(dimGraphics, fillVisibleCanvas(dimTransform));
         dim.on(Node.EventType.TOUCH_END, () => {
             panel.active = false;
         });
 
-        const cardWidth = MainMenuSettings.px(307);
-        const cardHeight = MainMenuSettings.px(335);
+        const cardWidth = 605;
+        const cardHeight = 659;
         const card = new Node('Card');
         card.layer = Layers.Enum.UI_2D;
         card.parent = panel;
@@ -106,20 +104,20 @@ export class MainMenuSettings {
         card.addComponent(BlockInputEvents);
         MainMenuSettings.addSprite(card, 'ui/settings/home/panel/spriteFrame', cardWidth, cardHeight);
 
-        const titleWidth = MainMenuSettings.px(158);
-        const titleHeight = MainMenuSettings.px(46.5);
+        const titleWidth = 330;
+        const titleHeight = 132;
         const titleFrame = new Node('TitleFrame');
         titleFrame.layer = Layers.Enum.UI_2D;
         titleFrame.parent = card;
-        titleFrame.setPosition(0, MainMenuSettings.px(167), 0);
+        titleFrame.setPosition(0, 330, 0);
         titleFrame.addComponent(UITransform).setContentSize(titleWidth, titleHeight);
         MainMenuSettings.addSprite(titleFrame, 'ui/settings/home/title_frame/spriteFrame', titleWidth, titleHeight);
 
         const title = MainMenuSettings.addLabel(
-            card, '', titleWidth - 24, titleHeight - 16, 34, BROWN, Label.HorizontalAlign.CENTER
+            card, '', 240, 56, 42, BROWN, Label.HorizontalAlign.CENTER
         );
         title.node.name = 'PanelTitle';
-        title.node.setPosition(0, MainMenuSettings.px(164), 0);
+        title.node.setPosition(0, 322, 0);
 
         const toggles: { key: ToggleKey; x: number }[] = [
             { key: 'music', x: -MainMenuSettings.px(58.5) },
@@ -282,30 +280,12 @@ export class MainMenuSettings {
     }
 
     private static addCloseButton(card: Node, onClick: () => void): void {
-        const size = MainMenuSettings.px(31);
         const node = new Node('CloseButton');
         node.layer = Layers.Enum.UI_2D;
         node.parent = card;
-        node.setPosition(MainMenuSettings.px(137.5), MainMenuSettings.px(164.5), 0);
-        node.addComponent(UITransform).setContentSize(size, size);
-        const graphics = node.addComponent(Graphics);
-        const radius = size / 2 - 1;
-        graphics.fillColor = CLOSE_FILL;
-        graphics.circle(0, 0, radius);
-        graphics.fill();
-        graphics.strokeColor = CLOSE_STROKE;
-        graphics.lineWidth = 2;
-        graphics.circle(0, 0, radius);
-        graphics.stroke();
-        graphics.strokeColor = BROWN;
-        graphics.lineWidth = 3;
-        graphics.moveTo(-7, -7);
-        graphics.lineTo(7, 7);
-        graphics.stroke();
-        graphics.moveTo(-7, 7);
-        graphics.lineTo(7, -7);
-        graphics.stroke();
-
+        node.setPosition(266, 318, 0);
+        node.addComponent(UITransform).setContentSize(64, 64);
+        MainMenuSettings.addSprite(node, 'ui/pause/btn_close/spriteFrame', 64, 64);
         const button = node.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.06;

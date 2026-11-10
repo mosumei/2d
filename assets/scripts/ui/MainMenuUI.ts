@@ -24,6 +24,7 @@ import { MainMenuSettings } from './MainMenuSettings';
 import { GEM_COLOR_LETTERS, GemColor } from '../game/GemCell';
 import { configureGemPalette, drawBead, GemPalette } from '../game/GemVisuals';
 import { loadTileSet, TileFrames } from '../game/TileSprites';
+import { screenEdgeShift, visibleCanvasSize } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
@@ -71,10 +72,12 @@ export class MainMenuUI extends Component {
         const root = new Node('HomeRoot');
         root.layer = Layers.Enum.UI_2D;
         root.parent = canvas;
-        root.addComponent(UITransform).setContentSize(720, 1280);
+        const screen = visibleCanvasSize();
+        const shift = screenEdgeShift();
+        root.addComponent(UITransform).setContentSize(screen.width, screen.height);
 
-        this.addImage(root, 'HomeBackground', 'ui/game/bg_scene/spriteFrame', 0, 0, 720, 1280);
-        this.addImage(root, 'HomeLogo', 'ui/home/logo_jewel_puzzle/spriteFrame', 0, 430, 460, 166);
+        this.addImage(root, 'HomeBackground', 'ui/game/bg_scene/spriteFrame', 0, 0, screen.width, screen.height);
+        this.addImage(root, 'HomeLogo', 'ui/home/logo_jewel_puzzle/spriteFrame', 0, 430 + shift, 460, 166);
         const frame = this.addImage(root, 'ShowcaseFrame', 'ui/home/frame_showcase/spriteFrame', 0, 90, 420, 420);
         this.addShowcaseArt(frame);
         this.playButton = this.addImage(
@@ -209,7 +212,7 @@ export class MainMenuUI extends Component {
             'CollectionButton',
             'ui/home/btn_collection/spriteFrame',
             0,
-            -450,
+            -450 - screenEdgeShift(),
             440,
             150
         );

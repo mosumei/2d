@@ -3,6 +3,7 @@ import {
     SpriteFrame, Label, resources, isValid, UITransform, Color,
     Graphics, Layers, BlockInputEvents
 } from 'cc';
+import { fillVisibleCanvas, paintVisibleRect } from '../core/VisibleCanvas';
 import { ARTIFACTS, ArtifactCollectionManager } from '../core/ArtifactCollectionManager';
 import { localize } from '../core/Locale';
 
@@ -141,15 +142,14 @@ export class ArtifactCollectionUI extends Component {
 
         this.node.layer = Layers.Enum.UI_2D;
         const root = this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform);
-        root.setContentSize(720, 1280);
+        const screen = fillVisibleCanvas(root);
         if (!this.node.getComponent(BlockInputEvents)) {
             this.node.addComponent(BlockInputEvents);
         }
         if (!this.node.getComponent(Graphics)) {
             const backdrop = this.node.addComponent(Graphics);
             backdrop.fillColor = new Color(18, 28, 42, 168);
-            backdrop.rect(-360, -640, 720, 1280);
-            backdrop.fill();
+            paintVisibleRect(backdrop, screen);
         }
 
         const floor = new Node('CollectionFloor');
@@ -191,12 +191,11 @@ export class ArtifactCollectionUI extends Component {
         detail.layer = Layers.Enum.UI_2D;
         detail.parent = this.node;
         detail.active = false;
-        detail.addComponent(UITransform).setContentSize(720, 1280);
+        const detailTransform = detail.addComponent(UITransform);
         detail.addComponent(BlockInputEvents);
         const dim = detail.addComponent(Graphics);
         dim.fillColor = new Color(18, 28, 42, 210);
-        dim.rect(-360, -640, 720, 1280);
-        dim.fill();
+        paintVisibleRect(dim, fillVisibleCanvas(detailTransform));
 
         const card = new Node('DetailCard');
         card.layer = Layers.Enum.UI_2D;

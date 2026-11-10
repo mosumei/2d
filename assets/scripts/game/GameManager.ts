@@ -1,8 +1,8 @@
 
 import {
     _decorator, Component, Label, Sprite, SpriteFrame,
-    director, Node, Layers, Button, UITransform, Vec2,
-    Graphics, Color, resources, isValid, UIOpacity, Mask, JsonAsset
+    director, Node, Layers, Button, UITransform, Vec2, Vec3,
+    Graphics, Color, resources, isValid, UIOpacity, Mask, JsonAsset, Widget
 } from 'cc';
 
 import { PREVIEW } from 'cc/env';
@@ -33,6 +33,7 @@ import { JewelEffects } from './JewelEffects';
 import { GemCompletionShine } from './GemCompletionShine';
 import { configureGemPalette, gemDrawSize } from './GemVisuals';
 import { localize } from '../core/Locale';
+import { fillVisibleCanvas, screenEdgeShift } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
@@ -218,7 +219,7 @@ onLoad() {
         const node = new Node('CollectionEntry');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(236, 588, 0);
+        node.setPosition(236, 588 + screenEdgeShift(), 0);
         node.addComponent(UITransform).setContentSize(176, 52);
 
         const graphics = node.addComponent(Graphics);
@@ -326,7 +327,7 @@ onLoad() {
         const node = new Node('GearButton');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(-278, 559, 0);
+        node.setPosition(-278, 559 + screenEdgeShift(), 0);
         node.addComponent(UITransform).setContentSize(77, 77);
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
@@ -357,7 +358,10 @@ onLoad() {
         const sprite = background.getComponent(Sprite) ?? background.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         sprite.color = Color.WHITE;
-        background.getComponent(UITransform)?.setContentSize(720, 1280);
+        const widget = background.getComponent(Widget);
+        if (widget) widget.enabled = false;
+        const transform = background.getComponent(UITransform);
+        if (transform) fillVisibleCanvas(transform);
         resources.load('ui/game/bg_scene/spriteFrame', SpriteFrame, (error, frame) => {
             if (error || !frame || !isValid(background)) {
                 if (error) console.error('[Game] 加载 ui/game/bg_scene/spriteFrame 失败', error);
@@ -377,7 +381,7 @@ onLoad() {
         const node = new Node('SkipLevelButton');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(250, 470, 0);
+        node.setPosition(250, 470 + screenEdgeShift(), 0);
         node.addComponent(UITransform).setContentSize(128, 48);
 
         const graphics = node.addComponent(Graphics);
@@ -439,7 +443,7 @@ onLoad() {
         if (!tray?.isValid) return;
         const shelfBottom = tray.getShelfBottom();
         if (shelfBottom === null) return;
-        tray.node.setPosition(0, this.trayBottomY - shelfBottom, 0);
+        tray.node.setPosition(0, this.trayBottomY - screenEdgeShift() - shelfBottom, 0);
         const canvas = this.node.parent;
         const viewport = canvas?.getChildByName('BoardViewport');
         if (canvas && viewport) this.raiseChromeAboveBoard(canvas, viewport);
@@ -452,7 +456,7 @@ onLoad() {
         const area = viewport.getComponent(UITransform);
         if (!area) return;
         viewport.setPosition(0, 0, 0);
-        area.setContentSize(720, 1280);
+        fillVisibleCanvas(area);
         area.setAnchorPoint(0.5, 0.5);
     }
 
@@ -546,6 +550,7 @@ onLoad() {
             this.boardGesture = boardNode.getComponent(BoardGesture) ?? boardNode.addComponent(BoardGesture);
             this.boardGesture.setViewport(viewport);
             this.boardGesture.canInteract = () => !this.isAnimating && !this.finished && !this.isSettingsOpen();
+            this.boardGesture.onTap = point => this.tryAssistPlacement(point);
             this.boardGesture.rememberRest();
         }
         if (this.trayManager) {
@@ -696,6 +701,48 @@ onLoad() {
         if (cell.canMove() && cell.currentColor) {
             this.selectBoard(cell);
         }
+    }
+
+    /** Small local correction only: an explicit cell hit and ambiguous targets keep normal input. */
+    private tryAssistPlacement(point: Vec2): boolean {
+        if (this.finished || this.isSettingsOpen() || this.isAnimating || this.magnetRunning ||
+            this.wandMode || this.tutorialRunning) return false;
+        const selection = this.selected;
+        const color = selection?.type === 'board' ? selection.cell.currentColor :
+            selection?.type === 'tray' ? this.trayManager?.getGemAt(selection.index) : null;
+        const board = this.boardManager;
+        const ui = board?.node.getComponent(UITransform);
+        if (!color || !board || !ui) return false;
+
+        const local = ui.convertToNodeSpaceAR(new Vec3(point.x, point.y, 0));
+        const nearby: GemCell[] = [];
+        let candidate: GemCell | null = null;
+        let nearestDistance = Infinity;
+        for (const cell of board.getCells()) {
+            const dx = local.x - cell.node.position.x;
+            const dy = local.y - cell.node.position.y;
+            const half = cell.getDisplaySize() / 2;
+            const matches = cell.currentColor === null && cell.targetColor === color;
+            // Keep picking up / deselecting pieces, and exact matching-slot taps, unchanged.
+            if (Math.abs(dx) <= half && Math.abs(dy) <= half &&
+                (cell.currentColor !== null || matches)) return false;
+            // Radius follows board zoom; never search beyond the immediate neighborhood.
+            const radius = (cell.getDisplaySize() + board.cellGap) * 0.85;
+            if (!matches || dx * dx + dy * dy > radius * radius) continue;
+            nearby.push(cell);
+            const distance = dx * dx + dy * dy;
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                candidate = cell;
+            }
+        }
+        if (!candidate) return false;
+        // Use the same eight-direction empty region as normal group placement.
+        // Multiple local slots are safe only when they all lead to this one region.
+        const region = new Set(this.getConnectedEmptyCells(candidate));
+        if (nearby.some(cell => !region.has(cell))) return false;
+        this.onBoardClick(candidate);
+        return true;
     }
 
     // ===== 点击棋盘格子 =====
@@ -1590,7 +1637,7 @@ onLoad() {
                 to: slotNode,
                 startSize: Math.round(gemDrawSize(item.color, item.cell.getDisplaySize())),
                 endSize: tray.getGemSize(),
-                delay: moves.length * 0.08,
+                delay: moves.length * 0.04,
                 sequential: true,
                 onDepart: () => {
                     item.cell.releaseOutline();
@@ -1705,6 +1752,11 @@ onLoad() {
     }
 
 
+    /** 大组归位也不拖长等待：正常间隔 35ms，整批错开最多 450ms。 */
+    private placementDelay(index: number, count: number): number {
+        return index * Math.min(0.035, 0.45 / Math.max(1, count - 1));
+    }
+
     // 把拿起的同色棋子放进点中这片连在一起的空格。
     private exchangeWithTargetGroup(clicked: GemCell) {
         const selection = this.selected;
@@ -1748,7 +1800,7 @@ onLoad() {
                 from: pair.source.gemSprite?.node ?? pair.source.node,
                 to: pair.dest.node,
                 endSize: gemDrawSize(sourceColor, pair.dest.getDisplaySize()),
-                delay: index * 0.07,
+                delay: this.placementDelay(index, pairs.length),
                 onDepart: () => pair.source.setCurrentColor(null),
                 onArrive: () => {
                     pair.dest.setCurrentColor(sourceColor);
@@ -1802,7 +1854,7 @@ onLoad() {
                 from: sourceGem,
                 to: pair.dest.node,
                 endSize: gemDrawSize(color, pair.dest.getDisplaySize()),
-                delay: index * 0.07,
+                delay: this.placementDelay(index, pairs.length),
                 onDepart: () => tray.setGemAt(pair.slot, null),
                 onArrive: () => {
                     pair.dest.setCurrentColor(color);
@@ -2017,6 +2069,7 @@ onLoad() {
                 data.initial,
                 () => {
                     if (!this.isValid) return;
+                    this.boardGesture?.rememberRest();
                     this.targetRegions = this.boardManager!.getTargetRegions();
                     this.flashedRegions = new Set(this.targetRegions.filter(region => region.every(cell => cell.isCorrect())));
                     this.grantedColors = new Set(this.colorsFullyPlaced());

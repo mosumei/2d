@@ -18,6 +18,7 @@ import {
 
 import { BoardManager } from './BoardManager';
 import { GemCell } from './GemCell';
+import { fillVisibleCanvas } from '../core/VisibleCanvas';
 
 // 整图节奏与珠子数量无关：短暂停留 → 斜向推进 → 最后一批余光退去。
 const WAVE_LEAD = 0.32;
@@ -71,7 +72,7 @@ export class GemCompletionShine {
         layer.layer = Layers.Enum.UI_2D;
         layer.parent = canvas;
         layer.setSiblingIndex(canvas.children.length - 1);
-        layer.addComponent(UITransform).setContentSize(720, 1280);
+        fillVisibleCanvas(layer.addComponent(UITransform));
         const layerHit = layer.getComponent(UITransform);
         if (layerHit) layerHit.hitTest = () => false;
 

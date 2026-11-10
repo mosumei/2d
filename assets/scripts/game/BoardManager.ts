@@ -11,6 +11,7 @@ import {
     TargetFrames
 } from './GemCell';
 import { loadTileSet, TileFrames } from './TileSprites';
+import { boardPlayfield, playfieldCenterY, visibleCanvasSize } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
@@ -119,10 +120,24 @@ export class BoardManager extends Component {
         const rows = this.pattern.length;
         const cols = this.pattern[0].length;
         const gap = this.cellGap;
+        const playfield = boardPlayfield();
+        const widthBudget = visibleCanvasSize().width - 12;
+        const fitted = Math.max(1, Math.min(
+            playfield.width / this.maxBoardWidth,
+            playfield.height / this.maxBoardHeight
+        ));
+        const scale = Math.max(1, Math.min(
+            fitted * 1.08,
+            widthBudget / this.maxBoardWidth,
+            playfield.height / this.maxBoardHeight
+        ));
+        const maxCellSize = this.maxCellSize * scale;
+        const maxBoardWidth = this.maxBoardWidth * scale;
+        const maxBoardHeight = this.maxBoardHeight * scale;
         const cellSize = Math.min(
-            this.maxCellSize,
-            (this.maxBoardWidth - (cols - 1) * gap) / cols,
-            (this.maxBoardHeight - (rows - 1) * gap) / rows
+            maxCellSize,
+            (maxBoardWidth - (cols - 1) * gap) / cols,
+            (maxBoardHeight - (rows - 1) * gap) / rows
         );
         const step = cellSize + gap;
         this.node.getComponent(UITransform)?.setContentSize(cols * step - gap, rows * step - gap);
@@ -210,9 +225,31 @@ export class BoardManager extends Component {
         }
 
         this.drawOutline(rows, cols, cellSize, step);
+        this.centerPuzzle();
         console.log(
-            `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}`
+            `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}，放大 ${scale.toFixed(2)}`
         );
+    }
+
+    /** 按有珠子的外框居中，不按整张格子表。空位多的一边不会把图案挤偏。 */
+    private centerPuzzle(): void {
+        const originY = playfieldCenterY();
+        if (this.cells.length === 0) {
+            this.node.setPosition(0, originY, 0);
+            return;
+        }
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (const cell of this.cells) {
+            const point = cell.node.position;
+            minX = Math.min(minX, point.x);
+            maxX = Math.max(maxX, point.x);
+            minY = Math.min(minY, point.y);
+            maxY = Math.max(maxY, point.y);
+        }
+        this.node.setPosition(-(minX + maxX) / 2, originY - (minY + maxY) / 2, 0);
     }
 
     /** 沿拼图阶梯外形描一圈，线在珠子外侧。 */

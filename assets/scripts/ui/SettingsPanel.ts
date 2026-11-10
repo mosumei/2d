@@ -21,7 +21,7 @@ import { localize } from '../core/Locale';
 
 const { ccclass, property } = _decorator;
 
-const BROWN = new Color(112, 74, 35, 255);
+const BROWN = new Color(122, 72, 36, 255);
 
 @ccclass('SettingsPanel')
 export class SettingsPanel extends Component {
@@ -224,7 +224,7 @@ export class SettingsPanel extends Component {
         root.layer = Layers.Enum.UI_2D;
         root.parent = this.node;
 
-        const panel = this.addSprite(root, 'Panel', 'ui/pause/panel_pause/spriteFrame', 0, -38, 605, 518);
+        const panel = this.addSprite(root, 'Panel', 'ui/pause/panel_pause/spriteFrame', 0, -38, 605, 482);
         panel.addComponent(BlockInputEvents);
 
         const title = this.addSprite(
@@ -232,16 +232,17 @@ export class SettingsPanel extends Component {
         );
         const titleSprite = title.getComponent(Sprite);
         if (titleSprite) titleSprite.trim = false;
-        this.pauseTitle = this.addLabel(title, 'Title', 200, 64, 50, BROWN, 0, -5);
+        this.pauseTitle = this.addLabel(title, 'Title', 220, 56, 42, BROWN, 0, -5);
 
-        this.addToggle(root, 'ToggleMusic', 'ui/pause/btn_music/spriteFrame', -83, 63, () => this.toggleMusic());
-        this.addToggle(root, 'ToggleSound', 'ui/pause/btn_sound/spriteFrame', 83, 63, () => this.toggleSound());
+        this.addToggle(root, 'ToggleMusic', 'ui/pause/btn_music/spriteFrame', -167, 21, () => this.toggleMusic());
+        this.addToggle(root, 'ToggleVibration', 'ui/pause/btn_vibration/spriteFrame', 0, 21, () => this.toggleVibration());
+        this.addToggle(root, 'ToggleSound', 'ui/pause/btn_sound/spriteFrame', 167, 21, () => this.toggleSound());
 
         this.homeTitle = this.addAction(
-            root, 'HomeButton', 'ui/pause/btn_home/spriteFrame', -138, -88, BROWN, () => this.onHome?.()
+            root, 'HomeButton', 'ui/pause/btn_home/spriteFrame', -138, -120, BROWN, () => this.onHome?.()
         );
         this.replayTitle = this.addAction(
-            root, 'ReplayButton', 'ui/pause/btn_replay/spriteFrame', 138, -88, Color.WHITE, () => this.onReplay?.()
+            root, 'ReplayButton', 'ui/pause/btn_replay/spriteFrame', 138, -120, Color.WHITE, () => this.onReplay?.()
         );
 
         this.addClose(root);
@@ -290,36 +291,13 @@ export class SettingsPanel extends Component {
     }
 
     /**
-     * 这包切图没有圆形关闭钮。现有的红色关闭图和这块米色底板不配，按设计画一个。
+     * 关闭钮在卡片右上角，标题牌右侧那块空位。
      * @param parent 弹窗根节点
      */
     private addClose(parent: Node) {
-        const size = 92;
-        const node = new Node('CloseButton');
-        node.layer = Layers.Enum.UI_2D;
-        node.parent = parent;
-        node.setPosition(0, -389, 0);
-        node.addComponent(UITransform).setContentSize(size, size);
-
-        const graphics = node.addComponent(Graphics);
-        graphics.fillColor = new Color(246, 236, 220, 255);
-        graphics.circle(0, 0, size / 2);
-        graphics.fill();
-        graphics.strokeColor = new Color(214, 186, 146, 255);
-        graphics.lineWidth = 2;
-        graphics.circle(0, 0, size / 2 - 1);
-        graphics.stroke();
-
-        graphics.strokeColor = BROWN;
-        graphics.lineWidth = 5;
-        graphics.lineCap = Graphics.LineCap.ROUND;
-        const arm = 15;
-        graphics.moveTo(-arm, arm);
-        graphics.lineTo(arm, -arm);
-        graphics.moveTo(arm, arm);
-        graphics.lineTo(-arm, -arm);
-        graphics.stroke();
-
+        const node = this.addSprite(
+            parent, 'CloseButton', 'ui/pause/btn_close/spriteFrame', 266, 192, 64, 64
+        );
         const button = node.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.06;
@@ -398,9 +376,9 @@ export class SettingsPanel extends Component {
         node.addComponent(UITransform).setContentSize(width, height);
         const label = node.addComponent(Label);
         label.useSystemFont = true;
-        label.fontFamily = 'Source Han Serif SC';
+        label.fontFamily = 'PingFang SC';
         label.fontSize = fontSize;
-        label.lineHeight = fontSize + 4;
+        label.lineHeight = fontSize + 6;
         label.isBold = true;
         label.color = color;
         label.overflow = Label.Overflow.SHRINK;
