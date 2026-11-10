@@ -1,7 +1,7 @@
 import { Color, Graphics, Layers, Node, Sprite, UITransform } from 'cc';
 import type { GemColor } from './GemCell';
 
-// 灰色有 gem_gray。其余颜色用 gems/octagon/ 里最接近的珠子。
+// 灰色、粉色、土黄用 palette。黑色轮廓仍用八边形深灰珠。
 export const BEAD_COLORS: Record<GemColor, [number, number, number]> = {
     yellow: [230, 190, 40], blue: [40, 80, 200], red: [210, 40, 40],
     black: [40, 48, 46], white: [236, 236, 236], pink: [180, 40, 110],
@@ -28,8 +28,8 @@ export function usesIllustratedGem(color: GemColor): boolean {
     return ILLUSTRATED.has(color);
 }
 
-/** 珠子相对插槽的边长。插槽为 1 时珠子是 0.85。 */
-export const ILLUSTRATED_GEM_RATIO = 0.85;
+/** 新配色珠子原图 48，插槽原图 60。珠子按这个比例铺在插槽上，不再另做缩放。 */
+export const ILLUSTRATED_GEM_RATIO = 48 / 60;
 
 /** 没有切图时，矢量珠相对格子的边长。 */
 export const VECTOR_GEM_RATIO = 0.72;

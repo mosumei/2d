@@ -77,7 +77,7 @@ export class MainMenuUI extends Component {
         root.addComponent(UITransform).setContentSize(screen.width, screen.height);
 
         this.addImage(root, 'HomeBackground', 'ui/game/bg_scene/spriteFrame', 0, 0, screen.width, screen.height);
-        this.addImage(root, 'HomeLogo', 'ui/home/logo_jewel_puzzle/spriteFrame', 0, 430 + shift, 460, 166);
+        this.addImage(root, 'HomeLogo', 'ui/home/logo_jewel_puzzle/spriteFrame', 0, 370 + shift, 460, 166);
         const frame = this.addImage(root, 'ShowcaseFrame', 'ui/home/frame_showcase/spriteFrame', 0, 90, 420, 420);
         this.addShowcaseArt(frame);
         this.playButton = this.addImage(

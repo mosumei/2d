@@ -18,6 +18,7 @@ import { GameSettings } from '../core/GameSettings';
 import { LevelSession } from '../core/LevelSession';
 import { localize } from '../core/Locale';
 import { fillVisibleCanvas, paintVisibleRect, screenEdgeShift } from '../core/VisibleCanvas';
+import { FeedbackPanel } from './FeedbackPanel';
 
 type ToggleKey = 'music' | 'sound';
 type MenuAction = 'feedback' | 'share' | 'privacy';
@@ -58,7 +59,7 @@ export class MainMenuSettings {
         const node = new Node('MainMenuSettingsEntry');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(-278, 559 + screenEdgeShift(), 0);
+        node.setPosition(-310, 440 + screenEdgeShift(), 0);
         node.addComponent(UITransform).setContentSize(77, 77);
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
@@ -185,7 +186,12 @@ export class MainMenuSettings {
 
     private static onAction(panel: Node, action: MenuAction): void {
         switch (action) {
-            case 'feedback':
+            case 'feedback': {
+                const canvas = panel.parent;
+                panel.active = false;
+                if (canvas) FeedbackPanel.open(canvas);
+                break;
+            }
             case 'share':
             case 'privacy':
                 MainMenuSettings.showTip(panel, localize('暂未开放', 'Not available yet'));
@@ -283,9 +289,9 @@ export class MainMenuSettings {
         const node = new Node('CloseButton');
         node.layer = Layers.Enum.UI_2D;
         node.parent = card;
-        node.setPosition(266, 318, 0);
-        node.addComponent(UITransform).setContentSize(64, 64);
-        MainMenuSettings.addSprite(node, 'ui/pause/btn_close/spriteFrame', 64, 64);
+        node.setPosition(262, 299, 0);
+        node.addComponent(UITransform).setContentSize(88, 88);
+        MainMenuSettings.addSprite(node, 'ui/feedback/btn_close/spriteFrame', 88, 88);
         const button = node.addComponent(Button);
         button.transition = Button.Transition.SCALE;
         button.zoomScale = 1.06;

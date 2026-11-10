@@ -17,24 +17,26 @@ const ILLUSTRATED_COLORS: GemColor[] = [
     'darkRed', 'orange', 'brown', 'olive', 'teal', 'navy', 'purple'
 ];
 
-/** 八边形目前有 6 颗珠子。没有的颜色用现有珠子里最接近的一颗。 */
-function shapedGemName(color: GemColor): string {
+/**
+ * 珠子图。黄用 palette 土黄，蓝用淡蓝。灰色、粉色也在 palette。黑色轮廓仍用八边形深灰珠。
+ */
+function gemAsset(color: GemColor): string {
     switch (color) {
-        case 'white': return 'white';
-        case 'yellow':
-        case 'orange':
-        case 'brown': return 'yellow';
-        case 'red':
-        case 'pink':
-        case 'darkRed': return 'red';
-        case 'green':
-        case 'teal':
-        case 'olive': return 'green';
-        case 'blue':
-        case 'navy':
-        case 'purple': return 'blue';
-        case 'black':
-        case 'gray': return 'gray';
+        case 'white': return 'octagon/gem_white';
+        case 'yellow': return 'octagon/palette/gem_ochre';
+        case 'orange': return 'octagon/gem_orange';
+        case 'brown': return 'octagon/gem_brown';
+        case 'red': return 'octagon/gem_red';
+        case 'pink': return 'octagon/palette/gem_pink';
+        case 'darkRed': return 'octagon/gem_dark_red';
+        case 'green': return 'octagon/gem_green';
+        case 'teal': return 'octagon/gem_teal';
+        case 'olive': return 'octagon/palette/gem_ochre';
+        case 'blue': return 'octagon/palette/gem_light_blue';
+        case 'navy': return 'octagon/gem_navy';
+        case 'purple': return 'octagon/gem_purple';
+        case 'black': return 'octagon/gem_gray';
+        case 'gray': return 'octagon/palette/gem_gray';
         default: {
             const unknown: never = color;
             return unknown;
@@ -42,24 +44,26 @@ function shapedGemName(color: GemColor): string {
     }
 }
 
-/** 孔也只有 6 张，按珠子的颜色配最接近的一张。 */
-function shapedSocketName(color: GemColor): string {
+/**
+ * 插槽图。白色孔是浅灰空板。灰色用 palette 的灰框，黑色仍用深色孔。
+ */
+function socketAsset(color: GemColor): string {
     switch (color) {
-        case 'white': return 'light';
-        case 'yellow':
-        case 'orange':
-        case 'brown': return 'gold';
-        case 'red':
-        case 'pink':
-        case 'darkRed': return 'dark_red';
-        case 'green':
-        case 'teal':
-        case 'olive': return 'green_dark';
-        case 'blue':
-        case 'navy':
-        case 'purple': return 'blue_dark';
-        case 'black':
-        case 'gray': return 'black';
+        case 'white': return 'octagon/socket_light';
+        case 'yellow': return 'octagon/palette/socket_ochre';
+        case 'orange': return 'octagon/socket_orange';
+        case 'brown': return 'octagon/socket_brown';
+        case 'red': return 'octagon/socket_red';
+        case 'pink': return 'octagon/palette/socket_pink';
+        case 'darkRed': return 'octagon/socket_dark_red';
+        case 'green': return 'octagon/socket_green_dark';
+        case 'teal': return 'octagon/socket_teal';
+        case 'olive': return 'octagon/palette/socket_ochre';
+        case 'blue': return 'octagon/palette/socket_light_blue';
+        case 'navy': return 'octagon/socket_navy';
+        case 'purple': return 'octagon/socket_purple';
+        case 'black': return 'octagon/socket_black';
+        case 'gray': return 'octagon/palette/socket_gray';
         default: {
             const unknown: never = color;
             return unknown;
@@ -68,12 +72,12 @@ function shapedSocketName(color: GemColor): string {
 }
 
 function gemPath(color: GemColor): string {
-    return `gems/octagon/gem_${shapedGemName(color)}/spriteFrame`;
+    return `gems/${gemAsset(color)}/spriteFrame`;
 }
 
-/** 棋盘上的孔用八边形插槽。 */
+/** 棋盘上的孔用对应插槽。 */
 function socketPath(color: GemColor): string {
-    return `gems/octagon/socket_${shapedSocketName(color)}/spriteFrame`;
+    return `gems/${socketAsset(color)}/spriteFrame`;
 }
 
 /** 托盘空孔用八边形浅色板。 */

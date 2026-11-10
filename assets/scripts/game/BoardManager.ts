@@ -11,12 +11,15 @@ import {
     TargetFrames
 } from './GemCell';
 import { loadTileSet, TileFrames } from './TileSprites';
-import { boardPlayfield, playfieldCenterY, visibleCanvasSize } from '../core/VisibleCanvas';
+import { playfieldCenterY, visibleCanvasSize, gameHeaderY } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
 @ccclass('BoardManager')
 export class BoardManager extends Component {
+
+    /** 小型教学关使用第二关的格子尺寸，避免自动铺满后棋子过大。 */
+    public useReferenceCellSize = false;
 
     @property(Prefab)
     gemCellPrefab: Prefab | null = null;
@@ -120,24 +123,32 @@ export class BoardManager extends Component {
         const rows = this.pattern.length;
         const cols = this.pattern[0].length;
         const gap = this.cellGap;
-        const playfield = boardPlayfield();
-        const widthBudget = visibleCanvasSize().width - 12;
-        const fitted = Math.max(1, Math.min(
-            playfield.width / this.maxBoardWidth,
-            playfield.height / this.maxBoardHeight
-        ));
-        const scale = Math.max(1, Math.min(
-            fitted * 1.08,
-            widthBudget / this.maxBoardWidth,
-            playfield.height / this.maxBoardHeight
-        ));
-        const maxCellSize = this.maxCellSize * scale;
-        const maxBoardWidth = this.maxBoardWidth * scale;
-        const maxBoardHeight = this.maxBoardHeight * scale;
+        // 按实际有格子的范围适配，关卡四周的空白占位不计入拼图尺寸。
+        let minCol = cols;
+        let maxCol = -1;
+        let minRow = rows;
+        let maxRow = -1;
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                if (!this.parseColor(this.pattern[row]?.charAt(col) ?? '')) continue;
+                minCol = Math.min(minCol, col);
+                maxCol = Math.max(maxCol, col);
+                minRow = Math.min(minRow, row);
+                maxRow = Math.max(maxRow, row);
+            }
+        }
+        const occupiedCols = Math.max(1, maxCol - minCol + 1);
+        const occupiedRows = Math.max(1, maxRow - minRow + 1);
+        const screen = visibleCanvasSize();
+        // 第二关实际占用 21 列、29 行，同屏幕下按同一公式得到一致尺寸。
+        const referenceCellSize = Math.min(
+            (screen.width * 0.89 - 20 * gap) / 21,
+            (screen.height * 0.60 - 28 * gap) / 29
+        );
         const cellSize = Math.min(
-            maxCellSize,
-            (maxBoardWidth - (cols - 1) * gap) / cols,
-            (maxBoardHeight - (rows - 1) * gap) / rows
+            (screen.width * 0.89 - (occupiedCols - 1) * gap) / occupiedCols,
+            (screen.height * 0.60 - (occupiedRows - 1) * gap) / occupiedRows,
+            this.useReferenceCellSize ? referenceCellSize : Infinity
         );
         const step = cellSize + gap;
         this.node.getComponent(UITransform)?.setContentSize(cols * step - gap, rows * step - gap);
@@ -227,7 +238,7 @@ export class BoardManager extends Component {
         this.drawOutline(rows, cols, cellSize, step);
         this.centerPuzzle();
         console.log(
-            `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}，放大 ${scale.toFixed(2)}`
+            `[BoardManager] 创建 ${this.cells.length} 格，珠子尺寸 ${cellSize.toFixed(1)}`
         );
     }
 
@@ -249,7 +260,13 @@ export class BoardManager extends Component {
             minY = Math.min(minY, point.y);
             maxY = Math.max(maxY, point.y);
         }
-        this.node.setPosition(-(minX + maxX) / 2, originY - (minY + maxY) / 2, 0);
+        const halfCell = this.cells[0].getDisplaySize() / 2;
+        const top = gameHeaderY() - 29 - 62;
+        // 第一关的教学小拼图居中显示，尺寸仍沿用第二关。
+        const y = this.useReferenceCellSize
+            ? visibleCanvasSize().height * 0.03 - (minY + maxY) / 2
+            : top - maxY - halfCell;
+        this.node.setPosition(-(minX + maxX) / 2, y, 0);
     }
 
     /** 沿拼图阶梯外形描一圈，线在珠子外侧。 */

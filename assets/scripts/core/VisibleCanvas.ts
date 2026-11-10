@@ -23,6 +23,12 @@ export function screenEdgeShift(): number {
     return (visibleCanvasSize().height - DESIGN_HEIGHT) / 2;
 }
 
+/** 顶部预留至少 96 设计单位，给状态栏、刘海和小游戏胶囊留出空间。 */
+export function gameHeaderY(): number {
+    const height = visibleCanvasSize().height;
+    return height / 2 - Math.max(96, height * 0.075) - 29;
+}
+
 /** 把节点铺满当前可见画面，锚点保持在中心。 */
 export function fillVisibleCanvas(transform: UITransform): Size {
     const size = visibleCanvasSize();
@@ -41,7 +47,7 @@ export function paintVisibleRect(graphics: Graphics, size: Size): void {
  */
 export function playfieldCenterY(): number {
     const shift = screenEdgeShift();
-    const gearBottom = 559 + shift - 77 / 2 - 16;
+    const gearBottom = 440 + shift - 77 / 2 - 16;
     const trayTop = -354 - shift - 20;
     return (gearBottom + trayTop) / 2;
 }
@@ -54,7 +60,7 @@ export function boardPlayfield(): Size {
     const screen = visibleCanvasSize();
     const shift = screenEdgeShift();
     const width = screen.width - 32;
-    const gearBottom = 559 + shift - 77 / 2 - 16;
+    const gearBottom = 440 + shift - 77 / 2 - 16;
     const trayTop = -354 - shift - 20;
     const centerY = playfieldCenterY();
     const half = Math.min(gearBottom - centerY, centerY - trayTop);

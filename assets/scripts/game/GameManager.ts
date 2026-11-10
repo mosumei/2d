@@ -33,7 +33,7 @@ import { JewelEffects } from './JewelEffects';
 import { GemCompletionShine } from './GemCompletionShine';
 import { configureGemPalette, gemDrawSize } from './GemVisuals';
 import { localize } from '../core/Locale';
-import { fillVisibleCanvas, screenEdgeShift } from '../core/VisibleCanvas';
+import { fillVisibleCanvas, screenEdgeShift, visibleCanvasSize, gameHeaderY } from '../core/VisibleCanvas';
 
 const { ccclass, property } = _decorator;
 
@@ -88,7 +88,6 @@ export class GameManager extends Component {
     private boardGesture: BoardGesture | null = null;
     private toolsNode: Node | null = null;
     /** 托盘最底边（含绿色按钮）离屏幕底边留出的位置。 */
-    private readonly trayBottomY = -600;
     private hintEffect: HintEffect | null = null;
     private magnetManager: MagnetManager | null = null;
     private magnetRunning = false;
@@ -327,8 +326,9 @@ onLoad() {
         const node = new Node('GearButton');
         node.layer = Layers.Enum.UI_2D;
         node.parent = canvas;
-        node.setPosition(-278, 559 + screenEdgeShift(), 0);
-        node.addComponent(UITransform).setContentSize(77, 77);
+        const screen = visibleCanvasSize();
+        node.setPosition(-screen.width * 0.412, gameHeaderY(), 0);
+        node.addComponent(UITransform).setContentSize(58, 58);
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         resources.load('ui/game/btn_gea/spriteFrame', SpriteFrame, (error, frame) => {
@@ -436,14 +436,27 @@ onLoad() {
     }
 
     /**
-     * 托盘底边靠近屏幕底部，留出一条缝。行数变了也只往上长。
+     * 托盘保留底部位置，并确保顶边与拼图底边至少相隔 40 设计单位。
      */
     private placeTrayAboveTools() {
         const tray = this.trayManager;
         if (!tray?.isValid) return;
         const shelfBottom = tray.getShelfBottom();
         if (shelfBottom === null) return;
-        tray.node.setPosition(0, this.trayBottomY - screenEdgeShift() - shelfBottom, 0);
+        let y = -visibleCanvasSize().height * 0.465 + 100 - shelfBottom;
+        const board = this.boardManager;
+        const cells = board?.getCells() ?? [];
+        const boardUi = board?.node.getComponent(UITransform);
+        const parentUi = tray.node.parent?.getComponent(UITransform);
+        const shelfTop = tray.getShelfTop();
+        if (boardUi && parentUi && cells.length > 0 && shelfTop !== null) {
+            const bottom = Math.min(...cells.map(cell =>
+                cell.node.position.y - cell.getDisplaySize() / 2));
+            const point = parentUi.convertToNodeSpaceAR(
+                boardUi.convertToWorldSpaceAR(new Vec3(0, bottom, 0)));
+            y = Math.min(y, point.y - 40 - shelfTop);
+        }
+        tray.node.setPosition(0, y, 0);
         const canvas = this.node.parent;
         const viewport = canvas?.getChildByName('BoardViewport');
         if (canvas && viewport) this.raiseChromeAboveBoard(canvas, viewport);
@@ -521,7 +534,14 @@ onLoad() {
             this.trayManager.node.active = true;
         }
         if (this.levelLabel) {
-            this.levelLabel.node.active = false;
+            this.levelLabel.node.active = true;
+            const widget = this.levelLabel.node.getComponent(Widget);
+            if (widget) widget.enabled = false;
+            this.levelLabel.node.setPosition(0, gameHeaderY(), 0);
+            this.levelLabel.node.getComponent(UITransform)?.setContentSize(300, 58);
+            this.levelLabel.fontSize = 36;
+            this.levelLabel.lineHeight = 44;
+            this.levelLabel.color = new Color(179, 174, 232, 255);
         }
 
         this.ensureGameBackground();
@@ -686,7 +706,7 @@ onLoad() {
         this.audioManager?.playSelect();
     }
 
-    // 弹起后点到同色目标格才放回。点到别的可移动棋子，则改拿起那一组。
+    // 附近空槽由触摸捕获阶段优先处理；没有可放空槽时允许换拿。
     private placeLiftedTrayColor(cell: GemCell) {
         const selection = this.selected;
         const tray = this.trayManager;
@@ -697,13 +717,13 @@ onLoad() {
             this.placeTrayColor(selection.index, cell);
             return;
         }
-
         if (cell.canMove() && cell.currentColor) {
             this.selectBoard(cell);
+            this.noteTutorialProgress();
         }
     }
 
-    /** Small local correction only: an explicit cell hit and ambiguous targets keep normal input. */
+    /** 先寻找手指附近最近的同色空槽，成功后消费触摸，避免又触发换拿。 */
     private tryAssistPlacement(point: Vec2): boolean {
         if (this.finished || this.isSettingsOpen() || this.isAnimating || this.magnetRunning ||
             this.wandMode || this.tutorialRunning) return false;
@@ -715,21 +735,15 @@ onLoad() {
         if (!color || !board || !ui) return false;
 
         const local = ui.convertToNodeSpaceAR(new Vec3(point.x, point.y, 0));
-        const nearby: GemCell[] = [];
         let candidate: GemCell | null = null;
         let nearestDistance = Infinity;
         for (const cell of board.getCells()) {
             const dx = local.x - cell.node.position.x;
             const dy = local.y - cell.node.position.y;
-            const half = cell.getDisplaySize() / 2;
             const matches = cell.currentColor === null && cell.targetColor === color;
-            // Keep picking up / deselecting pieces, and exact matching-slot taps, unchanged.
-            if (Math.abs(dx) <= half && Math.abs(dy) <= half &&
-                (cell.currentColor !== null || matches)) return false;
-            // Radius follows board zoom; never search beyond the immediate neighborhood.
-            const radius = (cell.getDisplaySize() + board.cellGap) * 0.85;
+            // 使用棋盘局部坐标，容错范围随缩放变化，最多搜索约一格距离。
+            const radius = (cell.getDisplaySize() + board.cellGap) * 1.1;
             if (!matches || dx * dx + dy * dy > radius * radius) continue;
-            nearby.push(cell);
             const distance = dx * dx + dy * dy;
             if (distance < nearestDistance) {
                 nearestDistance = distance;
@@ -737,10 +751,6 @@ onLoad() {
             }
         }
         if (!candidate) return false;
-        // Use the same eight-direction empty region as normal group placement.
-        // Multiple local slots are safe only when they all lead to this one region.
-        const region = new Set(this.getConnectedEmptyCells(candidate));
-        if (nearby.some(cell => !region.has(cell))) return false;
         this.onBoardClick(candidate);
         return true;
     }
@@ -779,7 +789,7 @@ onLoad() {
             return;
         }
 
-        // 只能放进同色空位。点到另一组棋子，改成拿起那一组，不能两边对调。
+        // 附近没有可放空槽时，才允许放下当前组并换拿点中的错位棋子。
         const heldColor = selection.cell.currentColor;
         if (heldColor && cell.currentColor === null && cell.targetColor === heldColor) {
             this.exchangeWithTargetGroup(cell);
@@ -2063,6 +2073,7 @@ onLoad() {
             this.tutorial?.stop();
             this.tutorial = null;
             this.tutorialRunning = false;
+            this.boardManager!.useReferenceCellSize = data.id === 1;
             this.boardManager!.loadLevel(
                 data.target,
                 data.initialSwaps,
@@ -2103,7 +2114,11 @@ onLoad() {
                         this.scheduleOnce(show, 0.5);
                         if (!new URLSearchParams(location.search).has('preview-shine-frame')) this.schedule(show, 2);
                     }
-                    void trayReady.then(() => { if (this.isValid) this.finished = false; });
+                    void trayReady.then(() => {
+                        if (!this.isValid) return;
+                        this.placeTrayAboveTools();
+                        this.finished = false;
+                    });
                     if (steps.length === 0) return;
                     const canvas = this.node.parent;
                     if (!canvas || !this.boardManager || !this.trayManager) return;

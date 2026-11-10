@@ -74,12 +74,12 @@ public getFirstEmptySlot(): number {
     private readonly slotGap = 8;
     private readonly maxTrayWidth = 640;
     /** 十二个槽收在一条浅色胶囊里，两边留出空隙。 */
-    private readonly barWidth = 560;
+    private readonly barWidth = 600;
     /** 槽的上下各留一截，单行时底板不会太厚。 */
     private readonly barPadY = 14;
     /** 底边青绿按钮。切图是 372×120，按 720 画布缩成 238×77。 */
-    private readonly addPillWidth = 238;
-    private readonly addPillHeight = 77;
+    private readonly addPillWidth = 178;
+    private readonly addPillHeight = 64;
     /** 点一次加的孔数，和按钮上的数字一致。 */
     private readonly slotsPerGrant = 3;
     /** 一行 12 个孔，托盘最多六行。 */
@@ -413,13 +413,13 @@ public resetTray(capacity: number): Promise<void> {
             button.zoomScale = 1.05;
             pill.on(Button.EventType.CLICK, this.onAddPillClick, this);
         }
-        pill.getChildByName('SlotMark')?.setPosition(-72, 0, 0);
-        pill.getChildByName('PlusLabel')?.setPosition(-22, 0, 0);
-        pill.getChildByName('Divider')?.setPosition(24, 0, 0);
+        pill.getChildByName('SlotMark')?.setPosition(-56, 0, 0);
+        pill.getChildByName('PlusLabel')?.setPosition(-16, 0, 0);
+        pill.getChildByName('Divider')?.setPosition(20, 0, 0);
         const icon = pill.getChildByName('AddIcon');
         if (icon) {
-            icon.setPosition(64, 0, 0);
-            icon.getComponent(UITransform)?.setContentSize(46, 38);
+            icon.setPosition(49, 0, 0);
+            icon.getComponent(UITransform)?.setContentSize(36, 30);
         }
         pill.setPosition(0, -barHeight / 2 - this.addPillHeight / 2 + 12, 0);
         pill.active = this.slots.length < this.maxSlots;

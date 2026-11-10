@@ -17,7 +17,7 @@ import { drawBead, drawSocket, gemDrawSize, placeSocketFill, usesIllustratedGem 
 
 const { ccclass, property } = _decorator;
 
-// 关卡格子用单字母。灰色用 gem_gray。
+// 关卡格子用单字母。灰色用 palette 中灰，黑色用八边形深灰。
 export type GemColor =
     | 'yellow'
     | 'blue'
@@ -315,13 +315,18 @@ export class GemCell extends Component {
         const graphics = edge.getComponent(Graphics);
         if (!graphics) return;
         graphics.clear();
-        graphics.lineWidth = 1;
-        graphics.strokeColor = new Color(255, 255, 255, 78);
+        // 在底板内侧叠一层很淡的阴影，随各自底色融合，不再画不透明米色框。
+        graphics.fillColor = new Color(0, 0, 0, 18);
         const half = size / 2;
-        this.strokeSegment(graphics, -half, half, half, half);
-        this.strokeSegment(graphics, -half, half, -half, -half);
-        if (this.drawRightEdge) this.strokeSegment(graphics, half, half, half, -half);
-        if (this.drawBottomEdge) this.strokeSegment(graphics, -half, -half, half, -half);
+        const line = size / 70;
+        // 四个角只填一次，避免透明矩形重叠形成深色交点。
+        graphics.rect(-half, half - line, size, line);
+        const bottom = -half + (this.drawBottomEdge ? line : 0);
+        const height = half - line - bottom;
+        graphics.rect(-half, bottom, line, height);
+        if (this.drawRightEdge) graphics.rect(half - line, bottom, line, height);
+        if (this.drawBottomEdge) graphics.rect(-half, -half, size, line);
+        graphics.fill();
     }
 
     /**
@@ -333,12 +338,6 @@ export class GemCell extends Component {
         this.drawRightEdge = drawRight;
         this.drawBottomEdge = drawBottom;
         if (this.displaySize > 0) this.refreshView();
-    }
-
-    private strokeSegment(graphics: Graphics, x1: number, y1: number, x2: number, y2: number) {
-        graphics.moveTo(x1, y1);
-        graphics.lineTo(x2, y2);
-        graphics.stroke();
     }
 
     public setSelected(selected: boolean) {

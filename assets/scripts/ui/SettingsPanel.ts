@@ -296,7 +296,7 @@ export class SettingsPanel extends Component {
      */
     private addClose(parent: Node) {
         const node = this.addSprite(
-            parent, 'CloseButton', 'ui/pause/btn_close/spriteFrame', 266, 192, 64, 64
+            parent, 'CloseButton', 'ui/feedback/btn_close/spriteFrame', 262, 173, 88, 88
         );
         const button = node.addComponent(Button);
         button.transition = Button.Transition.SCALE;
