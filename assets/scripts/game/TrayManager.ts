@@ -254,6 +254,9 @@ public resetTray(capacity: number): Promise<void> {
             graphics.fillColor = new Color(255, 248, 236, 255);
             graphics.roundRect(-this.barWidth / 2, -height / 2, this.barWidth, height, radius);
             graphics.fill();
+            // Graphics 填充会在正中裂一条竖缝，用同色盖住。
+            graphics.rect(-1, -height / 2, 2, height);
+            graphics.fill();
         }
         this.paintShelfShadow(this.barWidth, height, radius, centerY);
         backing.setSiblingIndex(1);

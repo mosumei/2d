@@ -436,26 +436,14 @@ onLoad() {
     }
 
     /**
-     * 托盘保留底部位置，并确保顶边与拼图底边至少相隔 40 设计单位。
+     * 托盘底边固定在开局那一档。新开的一排只往上长。
      */
     private placeTrayAboveTools() {
         const tray = this.trayManager;
         if (!tray?.isValid) return;
         const shelfBottom = tray.getShelfBottom();
         if (shelfBottom === null) return;
-        let y = -visibleCanvasSize().height * 0.465 + 100 - shelfBottom;
-        const board = this.boardManager;
-        const cells = board?.getCells() ?? [];
-        const boardUi = board?.node.getComponent(UITransform);
-        const parentUi = tray.node.parent?.getComponent(UITransform);
-        const shelfTop = tray.getShelfTop();
-        if (boardUi && parentUi && cells.length > 0 && shelfTop !== null) {
-            const bottom = Math.min(...cells.map(cell =>
-                cell.node.position.y - cell.getDisplaySize() / 2));
-            const point = parentUi.convertToNodeSpaceAR(
-                boardUi.convertToWorldSpaceAR(new Vec3(0, bottom, 0)));
-            y = Math.min(y, point.y - 40 - shelfTop);
-        }
+        const y = -visibleCanvasSize().height * 0.465 - 20 - shelfBottom;
         tray.node.setPosition(0, y, 0);
         const canvas = this.node.parent;
         const viewport = canvas?.getChildByName('BoardViewport');

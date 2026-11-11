@@ -147,12 +147,12 @@ export function placeGemFill(sprite: Sprite, size: number): void {
 }
 
 /**
- * 把插槽切图里的色块铺满格子，并多伸出 1 像素压住接缝。
+ * 把插槽切图里的色块精确铺满格子，不向相邻格子外扩。
  * @param sprite 插槽精灵
  * @param size 格子边长
  */
 export function placeSocketFill(sprite: Sprite, size: number): void {
-    placeFrame(sprite, size, 1, SOCKET_TILE);
+    placeFrame(sprite, size, 0, SOCKET_TILE);
 }
 
 export function drawSocket(node: Node, size: number, color: GemColor): void {
